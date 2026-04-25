@@ -26,7 +26,7 @@ import {
   updatePartStatus
 } from "@/app/actions/admin";
 
-// --- TYPES ---
+// --- TYPES (unchanged) ---
 type UserType = "Graveyard" | "Individual" | "Admin";
 type UserStatus = "Active" | "Suspended" | "Blocked" | "Pending";
 type Plan = "Free" | "Premium" | "Enterprise";
@@ -93,7 +93,7 @@ const mockAnalyticsData = [
   { month: "Apr", revenue: 7200, users: 124, listings: 3840 },
 ];
 
-// --- Helper Components ---
+// --- Helper Components (unchanged) ---
 interface NavBtnProps { label: string; icon: React.ElementType; active: boolean; onClick: () => void; }
 function NavBtn({ label, icon: Icon, active, onClick }: NavBtnProps) {
   return (
@@ -124,7 +124,7 @@ function ToastMessage({ toast }: ToastMessageProps) {
   return <div className={`p-4 rounded-xl shadow-lg border-l-4 ${toast.variant === "error" ? "bg-red-900/90 border-red-500" : toast.variant === "success" ? "bg-green-900/90 border-green-500" : "bg-zinc-800 border-[#D4AF37]"}`}><p className="text-sm font-bold text-white">{toast.title}</p>{toast.description && <p className="text-xs text-zinc-300">{toast.description}</p>}</div>;
 }
 
-// --- Analytics Tab ---
+// --- Analytics Tab (unchanged) ---
 function AnalyticsTab({ users, parts }: { users: PlatformUser[]; parts: Part[] }) {
   const totalRevenue = users.reduce((sum, u) => sum + u.totalPaid, 0);
   const activeSellers = users.filter(u => u.status === "Active").length;
@@ -147,7 +147,7 @@ function AnalyticsTab({ users, parts }: { users: PlatformUser[]; parts: Part[] }
   );
 }
 
-// --- User Management Tab (with forced reload after status update) ---
+// --- User Management Tab (with the fixed handleStatusChange) ---
 interface UserManagementTabProps {
   users: PlatformUser[];
   setUsers: React.Dispatch<React.SetStateAction<PlatformUser[]>>;
@@ -177,21 +177,26 @@ function UserManagementTab({ users, setUsers, addToast, securitySettings, refres
   const paginated = filtered.slice((page - 1) * pageSize, page * pageSize);
   const totalPages = Math.ceil(filtered.length / pageSize);
 
-  // FIX: Force page reload after successful update
+  // ✅ FIXED: status change without page reload, using returned updatedUser
   const handleStatusChange = async (userId: string, newStatus: UserStatus) => {
     setUpdatingUserId(userId);
     try {
       const result = await updateUserStatus(userId, newStatus);
-      if (result.success) {
+      if (result.success && result.updatedUser) {
+        // Immediately update local state with the returned data
+        setUsers(prev => prev.map(u => 
+          u.id === userId ? { ...u, status: result.updatedUser.status } : u
+        ));
         addToast({ title: `Status updated to ${newStatus}`, variant: "success" });
-        // Force a full page reload to get fresh data from the server
-        window.location.reload();
+        // Optionally refresh from server to sync any other fields
+        await refreshUsers();
       } else {
-        throw new Error("Update failed");
+        throw new Error("Update failed – no updated user returned");
       }
     } catch (err: any) {
       console.error("Status update error:", err);
       addToast({ title: err.message || "Failed to update status", variant: "error" });
+    } finally {
       setUpdatingUserId(null);
     }
   };
@@ -325,7 +330,7 @@ function UserManagementTab({ users, setUsers, addToast, securitySettings, refres
   );
 }
 
-// --- UserDetailsModal ---
+// --- UserDetailsModal (unchanged) ---
 interface UserDetailsModalProps {
   user: PlatformUser;
   onClose: () => void;
@@ -362,7 +367,7 @@ function UserDetailsModal({ user, onClose, onVerifyLicense }: UserDetailsModalPr
   );
 }
 
-// --- PaymentModal ---
+// --- PaymentModal (unchanged) ---
 interface PaymentModalProps {
   user: PlatformUser;
   onClose: () => void;
@@ -394,7 +399,7 @@ function PaymentModal({ user, onClose, onMarkPaid }: PaymentModalProps) {
   );
 }
 
-// --- Inventory Tab ---
+// --- Inventory Tab (unchanged) ---
 interface InventoryTabProps {
   parts: Part[];
   setParts: React.Dispatch<React.SetStateAction<Part[]>>;
@@ -454,7 +459,7 @@ function InventoryTab({ parts, setParts, addToast }: InventoryTabProps) {
   );
 }
 
-// --- System Logs Tab ---
+// --- System Logs Tab (unchanged) ---
 function SystemLogsTab({ logs, addToast }: { logs: LogEntry[]; addToast: (toast: Omit<Toast, "id">) => void }) {
   return (
     <div className="space-y-6">
@@ -485,7 +490,7 @@ function SystemLogsTab({ logs, addToast }: { logs: LogEntry[]; addToast: (toast:
   );
 }
 
-// --- Security Settings Tab ---
+// --- Security Settings Tab (unchanged) ---
 interface SecuritySettingsTabProps {
   settings: SecuritySettings;
   setSettings: React.Dispatch<React.SetStateAction<SecuritySettings>>;
@@ -527,7 +532,7 @@ function SecuritySettingsTab({ settings, setSettings, addToast }: SecuritySettin
   );
 }
 
-// --- Admin Profile Modal ---
+// --- Admin Profile Modal (unchanged) ---
 interface AdminProfileModalProps {
   onClose: () => void;
   addToast: (toast: Omit<Toast, "id">) => void;

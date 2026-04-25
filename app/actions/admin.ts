@@ -2,7 +2,7 @@
 import { createServerClient } from '@supabase/ssr';
 import { cookies } from 'next/headers';
 import { revalidatePath } from 'next/cache';
-import { supabaseAdmin } from '@/lib/supabaseAdmin';   // <-- import admin client
+import { supabaseAdmin } from '@/lib/supabaseAdmin';
 
 async function getSupabase() {
   const cookieStore = await cookies();
@@ -19,7 +19,7 @@ async function getSupabase() {
   );
 }
 
-// ---------- FETCH (use normal client, RLS allows read) ----------
+// ---------- FETCH ----------
 export async function getUsers() {
   const supabase = await getSupabase();
   const { data, error } = await supabase.from('users').select('*');
@@ -41,7 +41,6 @@ export async function getSecuritySettings() {
   const supabase = await getSupabase();
   let { data, error } = await supabase.from('security_settings').select('*').single();
   if (error && error.code === 'PGRST116') {
-    // Insert default settings if none exist
     const defaultSettings = {
       id: 1,
       mfa_required: false,
@@ -60,15 +59,44 @@ export async function getSecuritySettings() {
   return data;
 }
 
-// ---------- MUTATIONS (use supabaseAdmin to bypass RLS) ----------
+// ---------- MUTATIONS ----------
 export async function updateUserStatus(userId: string, newStatus: string) {
-  const { error } = await supabaseAdmin
-    .from('users')
-    .update({ status: newStatus })
-    .eq('id', userId);
-  if (error) throw new Error(error.message);
-  revalidatePath('/dashboard');
-  return { success: true };
+  console.log('[updateUserStatus] Starting:', { userId, newStatus });
+  try {
+    // First, verify the user exists
+    const { data: existingUser, error: fetchError } = await supabaseAdmin
+      .from('users')
+      .select('id, status')
+      .eq('id', userId)
+      .single();
+    if (fetchError) {
+      console.error('[updateUserStatus] Fetch error:', fetchError);
+      throw new Error(`User not found: ${fetchError.message}`);
+    }
+    console.log('[updateUserStatus] Current status:', existingUser.status);
+
+    // Perform update
+    const { data, error } = await supabaseAdmin
+      .from('users')
+      .update({ status: newStatus })
+      .eq('id', userId)
+      .select(); // Returns the updated row
+
+    if (error) {
+      console.error('[updateUserStatus] Update error:', error);
+      throw new Error(error.message);
+    }
+    if (!data || data.length === 0) {
+      console.error('[updateUserStatus] No data returned after update');
+      throw new Error('Update succeeded but no data returned');
+    }
+    console.log('[updateUserStatus] Update successful, updated user:', data[0]);
+    revalidatePath('/dashboard');
+    return { success: true, updatedUser: data[0] };
+  } catch (err: any) {
+    console.error('[updateUserStatus] Caught error:', err);
+    throw err;
+  }
 }
 
 export async function verifyUserLicense(userId: string) {
@@ -82,7 +110,6 @@ export async function verifyUserLicense(userId: string) {
 }
 
 export async function markDebtPaid(userId: string, amount: number) {
-  // Insert payment using admin client
   await supabaseAdmin.from('payments').insert({
     user_id: userId,
     amount,
@@ -90,14 +117,12 @@ export async function markDebtPaid(userId: string, amount: number) {
     description: 'Admin marked debt as paid',
     recorded_by: 'admin'
   });
-  // Get total_paid
   const { data: user } = await supabaseAdmin
     .from('users')
     .select('total_paid')
     .eq('id', userId)
     .single();
   const newTotalPaid = (user?.total_paid || 0) + amount;
-  // Update user
   const { error } = await supabaseAdmin
     .from('users')
     .update({
@@ -112,7 +137,6 @@ export async function markDebtPaid(userId: string, amount: number) {
 }
 
 export async function updateSecuritySettings(settings: any) {
-  // Transform camelCase to snake_case for DB
   const dbSettings = {
     id: 1,
     mfa_required: settings.mfaRequired,
