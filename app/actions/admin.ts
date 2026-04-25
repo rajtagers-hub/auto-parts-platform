@@ -2,6 +2,7 @@
 import { createServerClient } from '@supabase/ssr';
 import { cookies } from 'next/headers';
 import { revalidatePath } from 'next/cache';
+import { supabaseAdmin } from '@/lib/supabaseAdmin';   // <-- import admin client
 
 async function getSupabase() {
   const cookieStore = await cookies();
@@ -18,7 +19,7 @@ async function getSupabase() {
   );
 }
 
-// ---------- FETCH ----------
+// ---------- FETCH (use normal client, RLS allows read) ----------
 export async function getUsers() {
   const supabase = await getSupabase();
   const { data, error } = await supabase.from('users').select('*');
@@ -40,7 +41,7 @@ export async function getSecuritySettings() {
   const supabase = await getSupabase();
   let { data, error } = await supabase.from('security_settings').select('*').single();
   if (error && error.code === 'PGRST116') {
-    // No row found, insert default
+    // Insert default settings if none exist
     const defaultSettings = {
       id: 1,
       mfa_required: false,
@@ -59,28 +60,30 @@ export async function getSecuritySettings() {
   return data;
 }
 
-// ---------- MUTATIONS ----------
+// ---------- MUTATIONS (use supabaseAdmin to bypass RLS) ----------
 export async function updateUserStatus(userId: string, newStatus: string) {
-  const supabase = await getSupabase();
-  const { error } = await supabase.from('users').update({ status: newStatus }).eq('id', userId);
+  const { error } = await supabaseAdmin
+    .from('users')
+    .update({ status: newStatus })
+    .eq('id', userId);
   if (error) throw new Error(error.message);
-  // Correct path: your admin dashboard is at /dashboard
   revalidatePath('/dashboard');
   return { success: true };
 }
 
 export async function verifyUserLicense(userId: string) {
-  const supabase = await getSupabase();
-  const { error } = await supabase.from('users').update({ license_verified: true }).eq('id', userId);
+  const { error } = await supabaseAdmin
+    .from('users')
+    .update({ license_verified: true })
+    .eq('id', userId);
   if (error) throw new Error(error.message);
   revalidatePath('/dashboard');
   return { success: true };
 }
 
 export async function markDebtPaid(userId: string, amount: number) {
-  const supabase = await getSupabase();
-  // Insert payment
-  await supabase.from('payments').insert({
+  // Insert payment using admin client
+  await supabaseAdmin.from('payments').insert({
     user_id: userId,
     amount,
     method: 'Manual',
@@ -88,22 +91,28 @@ export async function markDebtPaid(userId: string, amount: number) {
     recorded_by: 'admin'
   });
   // Get total_paid
-  const { data: user } = await supabase.from('users').select('total_paid').eq('id', userId).single();
+  const { data: user } = await supabaseAdmin
+    .from('users')
+    .select('total_paid')
+    .eq('id', userId)
+    .single();
   const newTotalPaid = (user?.total_paid || 0) + amount;
   // Update user
-  const { error } = await supabase.from('users').update({
-    current_debt: 0,
-    total_paid: newTotalPaid,
-    last_payment_date: new Date().toISOString().split('T')[0]
-  }).eq('id', userId);
+  const { error } = await supabaseAdmin
+    .from('users')
+    .update({
+      current_debt: 0,
+      total_paid: newTotalPaid,
+      last_payment_date: new Date().toISOString().split('T')[0]
+    })
+    .eq('id', userId);
   if (error) throw new Error(error.message);
   revalidatePath('/dashboard');
   return { success: true };
 }
 
 export async function updateSecuritySettings(settings: any) {
-  const supabase = await getSupabase();
-  // Transform camelCase keys to snake_case for DB
+  // Transform camelCase to snake_case for DB
   const dbSettings = {
     id: 1,
     mfa_required: settings.mfaRequired,
@@ -113,15 +122,19 @@ export async function updateSecuritySettings(settings: any) {
     auto_suspend_debt_days: settings.autoSuspendDebtDays,
     auto_hide_listings_on_debt: settings.autoHideListingsOnDebt,
   };
-  const { error } = await supabase.from('security_settings').upsert(dbSettings);
+  const { error } = await supabaseAdmin
+    .from('security_settings')
+    .upsert(dbSettings);
   if (error) throw new Error(error.message);
   revalidatePath('/dashboard');
   return { success: true };
 }
 
 export async function updatePartStatus(partId: string, status: string) {
-  const supabase = await getSupabase();
-  const { error } = await supabase.from('parts').update({ status }).eq('id', partId);
+  const { error } = await supabaseAdmin
+    .from('parts')
+    .update({ status })
+    .eq('id', partId);
   if (error) throw new Error(error.message);
   revalidatePath('/dashboard');
   return { success: true };

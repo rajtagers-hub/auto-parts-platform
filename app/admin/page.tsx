@@ -1,11 +1,11 @@
 "use client";
 import React, { useState, useMemo, useEffect } from "react";
 import {
-  ShieldCheck, Users, HardDrive, BarChart3, Search, MoreVertical,
-  UserPlus, Ban, CheckCircle2, TrendingUp, Wallet, ArrowUpRight,
-  Lock, LogOut, Zap, X, AlertTriangle, ChevronLeft, ChevronRight,
-  Calendar, Trash2, Edit3, Flag, Bell, User, Key,
-  Send, Car, Shield, Eye, EyeOff, DollarSign, FileText
+  ShieldCheck, Users, HardDrive, BarChart3, Search,
+  Ban, TrendingUp, Wallet, ArrowUpRight,
+  Lock, LogOut, Zap, X, AlertTriangle,
+  Trash2, Flag, Bell, User,
+  Send, Car, DollarSign, FileText
 } from "lucide-react";
 import {
   LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip,
@@ -26,7 +26,7 @@ import {
   updatePartStatus
 } from "@/app/actions/admin";
 
-// --- TYPES (keep as before) ---
+// --- TYPES ---
 type UserType = "Graveyard" | "Individual" | "Admin";
 type UserStatus = "Active" | "Suspended" | "Blocked" | "Pending";
 type Plan = "Free" | "Premium" | "Enterprise";
@@ -93,7 +93,7 @@ const mockAnalyticsData = [
   { month: "Apr", revenue: 7200, users: 124, listings: 3840 },
 ];
 
-// --- Helper Components (unchanged) ---
+// --- Helper Components ---
 interface NavBtnProps { label: string; icon: React.ElementType; active: boolean; onClick: () => void; }
 function NavBtn({ label, icon: Icon, active, onClick }: NavBtnProps) {
   return (
@@ -124,7 +124,7 @@ function ToastMessage({ toast }: ToastMessageProps) {
   return <div className={`p-4 rounded-xl shadow-lg border-l-4 ${toast.variant === "error" ? "bg-red-900/90 border-red-500" : toast.variant === "success" ? "bg-green-900/90 border-green-500" : "bg-zinc-800 border-[#D4AF37]"}`}><p className="text-sm font-bold text-white">{toast.title}</p>{toast.description && <p className="text-xs text-zinc-300">{toast.description}</p>}</div>;
 }
 
-// --- Analytics Tab (unchanged) ---
+// --- Analytics Tab ---
 function AnalyticsTab({ users, parts }: { users: PlatformUser[]; parts: Part[] }) {
   const totalRevenue = users.reduce((sum, u) => sum + u.totalPaid, 0);
   const activeSellers = users.filter(u => u.status === "Active").length;
@@ -147,7 +147,7 @@ function AnalyticsTab({ users, parts }: { users: PlatformUser[]; parts: Part[] }
   );
 }
 
-// --- User Management Tab (fixed – no optimistic update, with loading state) ---
+// --- User Management Tab (with forced reload after status update) ---
 interface UserManagementTabProps {
   users: PlatformUser[];
   setUsers: React.Dispatch<React.SetStateAction<PlatformUser[]>>;
@@ -163,7 +163,7 @@ function UserManagementTab({ users, setUsers, addToast, securitySettings, refres
   const [selectedUser, setSelectedUser] = useState<PlatformUser | null>(null);
   const [showPaymentModal, setShowPaymentModal] = useState(false);
   const [showDetailsModal, setShowDetailsModal] = useState(false);
-  const [updatingUserId, setUpdatingUserId] = useState<string | null>(null);  // loading state for status toggle
+  const [updatingUserId, setUpdatingUserId] = useState<string | null>(null);
   const pageSize = 5;
 
   const filtered = useMemo(() => {
@@ -177,21 +177,21 @@ function UserManagementTab({ users, setUsers, addToast, securitySettings, refres
   const paginated = filtered.slice((page - 1) * pageSize, page * pageSize);
   const totalPages = Math.ceil(filtered.length / pageSize);
 
-  // FIXED: No optimistic update. Wait for server, then refresh.
+  // FIX: Force page reload after successful update
   const handleStatusChange = async (userId: string, newStatus: UserStatus) => {
     setUpdatingUserId(userId);
     try {
       const result = await updateUserStatus(userId, newStatus);
       if (result.success) {
-        await refreshUsers();  // re-fetch from database
-        addToast({ title: `User status updated to ${newStatus}`, variant: "success" });
+        addToast({ title: `Status updated to ${newStatus}`, variant: "success" });
+        // Force a full page reload to get fresh data from the server
+        window.location.reload();
       } else {
         throw new Error("Update failed");
       }
     } catch (err: any) {
-      console.error(err);
+      console.error("Status update error:", err);
       addToast({ title: err.message || "Failed to update status", variant: "error" });
-    } finally {
       setUpdatingUserId(null);
     }
   };
@@ -325,7 +325,7 @@ function UserManagementTab({ users, setUsers, addToast, securitySettings, refres
   );
 }
 
-// --- UserDetailsModal (unchanged) ---
+// --- UserDetailsModal ---
 interface UserDetailsModalProps {
   user: PlatformUser;
   onClose: () => void;
@@ -362,7 +362,7 @@ function UserDetailsModal({ user, onClose, onVerifyLicense }: UserDetailsModalPr
   );
 }
 
-// --- PaymentModal (unchanged) ---
+// --- PaymentModal ---
 interface PaymentModalProps {
   user: PlatformUser;
   onClose: () => void;
@@ -394,7 +394,7 @@ function PaymentModal({ user, onClose, onMarkPaid }: PaymentModalProps) {
   );
 }
 
-// --- Inventory Tab (unchanged) ---
+// --- Inventory Tab ---
 interface InventoryTabProps {
   parts: Part[];
   setParts: React.Dispatch<React.SetStateAction<Part[]>>;
@@ -454,7 +454,7 @@ function InventoryTab({ parts, setParts, addToast }: InventoryTabProps) {
   );
 }
 
-// --- System Logs Tab (unchanged) ---
+// --- System Logs Tab ---
 function SystemLogsTab({ logs, addToast }: { logs: LogEntry[]; addToast: (toast: Omit<Toast, "id">) => void }) {
   return (
     <div className="space-y-6">
@@ -485,7 +485,7 @@ function SystemLogsTab({ logs, addToast }: { logs: LogEntry[]; addToast: (toast:
   );
 }
 
-// --- Security Settings Tab (unchanged) ---
+// --- Security Settings Tab ---
 interface SecuritySettingsTabProps {
   settings: SecuritySettings;
   setSettings: React.Dispatch<React.SetStateAction<SecuritySettings>>;
@@ -527,7 +527,7 @@ function SecuritySettingsTab({ settings, setSettings, addToast }: SecuritySettin
   );
 }
 
-// --- Admin Profile Modal (unchanged) ---
+// --- Admin Profile Modal ---
 interface AdminProfileModalProps {
   onClose: () => void;
   addToast: (toast: Omit<Toast, "id">) => void;
@@ -590,7 +590,7 @@ function AdminProfileModal({ onClose, addToast }: AdminProfileModalProps) {
   );
 }
 
-// --- MAIN ADMIN DASHBOARD (unchanged except branding) ---
+// --- MAIN ADMIN DASHBOARD ---
 export default function AdminDashboard() {
   const router = useRouter();
   const [activeTab, setActiveTab] = useState("users");
@@ -689,7 +689,7 @@ export default function AdminDashboard() {
 
   return (
     <div className="min-h-screen bg-[#050505] text-zinc-400 font-sans flex">
-      {/* Sidebar with new brand */}
+      {/* Sidebar */}
       <aside className={`fixed md:relative z-50 w-72 bg-[#080808] border-r border-[#D4AF37]/10 flex flex-col transition-transform duration-300 ${sidebarOpen ? "translate-x-0" : "-translate-x-full md:translate-x-0"}`}>
         <div className="p-8 flex flex-col h-full">
           <div className="flex items-center justify-between mb-12">
