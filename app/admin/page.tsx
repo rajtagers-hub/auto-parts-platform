@@ -124,7 +124,7 @@ function ToastMessage({ toast }: ToastMessageProps) {
   return <div className={`p-4 rounded-xl shadow-lg border-l-4 ${toast.variant === "error" ? "bg-red-900/90 border-red-500" : toast.variant === "success" ? "bg-green-900/90 border-green-500" : "bg-zinc-800 border-[#D4AF37]"}`}><p className="text-sm font-bold text-white">{toast.title}</p>{toast.description && <p className="text-xs text-zinc-300">{toast.description}</p>}</div>;
 }
 
-// --- Analytics Tab (unchanged) ---
+// --- Analytics Tab ---
 function AnalyticsTab({ users, parts }: { users: PlatformUser[]; parts: Part[] }) {
   const totalRevenue = users.reduce((sum, u) => sum + u.totalPaid, 0);
   const activeSellers = users.filter(u => u.status === "Active").length;
@@ -147,14 +147,15 @@ function AnalyticsTab({ users, parts }: { users: PlatformUser[]; parts: Part[] }
   );
 }
 
-// --- User Management Tab (uses Server Actions) ---
+// --- User Management Tab (with refresh fix) ---
 interface UserManagementTabProps {
   users: PlatformUser[];
   setUsers: React.Dispatch<React.SetStateAction<PlatformUser[]>>;
   addToast: (toast: Omit<Toast, "id">) => void;
   securitySettings: SecuritySettings;
+  refreshUsers: () => Promise<void>;
 }
-function UserManagementTab({ users, setUsers, addToast }: UserManagementTabProps) {
+function UserManagementTab({ users, setUsers, addToast, securitySettings, refreshUsers }: UserManagementTabProps) {
   const [search, setSearch] = useState("");
   const [page, setPage] = useState(1);
   const [statusFilter, setStatusFilter] = useState<"All" | UserStatus>("All");
@@ -176,11 +177,14 @@ function UserManagementTab({ users, setUsers, addToast }: UserManagementTabProps
   const totalPages = Math.ceil(filtered.length / pageSize);
 
   const handleStatusChange = async (userId: string, newStatus: UserStatus) => {
+    const oldUsers = [...users];
+    setUsers(prev => prev.map(u => u.id === userId ? { ...u, status: newStatus } : u));
     try {
       await updateUserStatus(userId, newStatus);
-      setUsers(prev => prev.map(u => u.id === userId ? { ...u, status: newStatus } : u));
       addToast({ title: `User ${newStatus}`, variant: "success" });
+      await refreshUsers();
     } catch (err: any) {
+      setUsers(oldUsers);
       addToast({ title: err.message || "Error updating status", variant: "error" });
     }
   };
@@ -191,6 +195,7 @@ function UserManagementTab({ users, setUsers, addToast }: UserManagementTabProps
       setUsers(prev => prev.map(u => u.id === userId ? { ...u, licenseVerified: true } : u));
       addToast({ title: "License verified", variant: "success" });
       setShowDetailsModal(false);
+      await refreshUsers();
     } catch (err: any) {
       addToast({ title: err.message || "Verification failed", variant: "error" });
     }
@@ -199,10 +204,7 @@ function UserManagementTab({ users, setUsers, addToast }: UserManagementTabProps
   const markDebtPaidHandler = async (userId: string, amount: number) => {
     try {
       await markDebtPaid(userId, amount);
-      const user = users.find(u => u.id === userId);
-      if (user) {
-        setUsers(prev => prev.map(u => u.id === userId ? { ...u, currentDebt: 0, totalPaid: u.totalPaid + amount, lastPaymentDate: new Date().toISOString().split('T')[0] } : u));
-      }
+      await refreshUsers();
       addToast({ title: "Debt marked as paid", variant: "success" });
       setShowPaymentModal(false);
     } catch (err: any) {
@@ -311,7 +313,7 @@ function UserManagementTab({ users, setUsers, addToast }: UserManagementTabProps
   );
 }
 
-// --- UserDetailsModal (unchanged) ---
+// --- UserDetailsModal ---
 interface UserDetailsModalProps {
   user: PlatformUser;
   onClose: () => void;
@@ -348,7 +350,7 @@ function UserDetailsModal({ user, onClose, onVerifyLicense }: UserDetailsModalPr
   );
 }
 
-// --- PaymentModal (unchanged) ---
+// --- PaymentModal ---
 interface PaymentModalProps {
   user: PlatformUser;
   onClose: () => void;
@@ -380,7 +382,7 @@ function PaymentModal({ user, onClose, onMarkPaid }: PaymentModalProps) {
   );
 }
 
-// --- Inventory Tab (uses Server Actions) ---
+// --- Inventory Tab ---
 interface InventoryTabProps {
   parts: Part[];
   setParts: React.Dispatch<React.SetStateAction<Part[]>>;
@@ -434,7 +436,7 @@ function InventoryTab({ parts, setParts, addToast }: InventoryTabProps) {
   );
 }
 
-// --- System Logs Tab (mock) ---
+// --- System Logs Tab ---
 function SystemLogsTab({ logs, addToast }: { logs: LogEntry[]; addToast: (toast: Omit<Toast, "id">) => void }) {
   return (
     <div className="space-y-6">
@@ -465,7 +467,7 @@ function SystemLogsTab({ logs, addToast }: { logs: LogEntry[]; addToast: (toast:
   );
 }
 
-// --- Security Settings Tab (uses Server Actions) ---
+// --- Security Settings Tab ---
 interface SecuritySettingsTabProps {
   settings: SecuritySettings;
   setSettings: React.Dispatch<React.SetStateAction<SecuritySettings>>;
@@ -507,7 +509,7 @@ function SecuritySettingsTab({ settings, setSettings, addToast }: SecuritySettin
   );
 }
 
-// --- Admin Profile Modal (uses hardcoded Server Actions) ---
+// --- Admin Profile Modal ---
 interface AdminProfileModalProps {
   onClose: () => void;
   addToast: (toast: Omit<Toast, "id">) => void;
@@ -598,6 +600,34 @@ export default function AdminDashboard() {
     setTimeout(() => setToasts((prev) => prev.filter((t) => t.id !== id)), 4000);
   };
 
+  const refreshUsers = async () => {
+    try {
+      const usersData = await getUsers();
+      setUsers(usersData.map((u: any) => ({ ...u, userType: u.user_type })));
+    } catch (err) {
+      console.error(err);
+      addToast({ title: "Error refreshing users", variant: "error" });
+    }
+  };
+
+  const refreshParts = async () => {
+    try {
+      const partsData = await getParts();
+      setParts(partsData.map((p: any) => ({
+        id: p.id,
+        title: p.title,
+        price: p.price,
+        sellerId: p.seller_id,
+        sellerName: p.users?.name || "Unknown",
+        condition: p.condition || "Used",
+        status: p.status,
+        createdAt: p.created_at.split("T")[0],
+      })));
+    } catch (err) {
+      console.error(err);
+    }
+  };
+
   useEffect(() => {
     const loadData = async () => {
       setLoading(true);
@@ -607,7 +637,6 @@ export default function AdminDashboard() {
           getParts(),
           getSecuritySettings(),
         ]);
-        // Map snake_case to camelCase for users
         setUsers(usersData.map((u: any) => ({ ...u, userType: u.user_type })));
         setParts(partsData.map((p: any) => ({
           id: p.id,
@@ -642,13 +671,16 @@ export default function AdminDashboard() {
 
   return (
     <div className="min-h-screen bg-[#050505] text-zinc-400 font-sans flex">
-      {/* Sidebar (unchanged) */}
+      {/* Sidebar */}
       <aside className={`fixed md:relative z-50 w-72 bg-[#080808] border-r border-[#D4AF37]/10 flex flex-col transition-transform duration-300 ${sidebarOpen ? "translate-x-0" : "-translate-x-full md:translate-x-0"}`}>
         <div className="p-8 flex flex-col h-full">
           <div className="flex items-center justify-between mb-12">
             <div className="flex items-center gap-3">
               <div className="w-10 h-10 bg-linear-to-br from-[#D4AF37] to-[#AA8419] rounded-xl flex items-center justify-center"><ShieldCheck size={22} className="text-black" /></div>
-              <div><h1 className="text-xl font-black italic uppercase text-white">Graveyard</h1><p className="text-[9px] text-[#D4AF37] font-bold tracking-[0.3em] uppercase">Admin Center</p></div>
+              <div>
+                <h1 className="text-xl font-black italic uppercase text-white">Auto Forms</h1>
+                <p className="text-[9px] text-[#D4AF37] font-bold tracking-[0.3em] uppercase">Admin Center</p>
+              </div>
             </div>
             <button className="md:hidden text-zinc-400" onClick={() => setSidebarOpen(false)}><X size={20} /></button>
           </div>
@@ -674,7 +706,15 @@ export default function AdminDashboard() {
       <main className="flex-1 overflow-y-auto p-4 md:p-10">
         <div className="fixed bottom-4 right-4 z-50 space-y-2">{toasts.map((toast) => <ToastMessage key={toast.id} toast={toast} />)}</div>
         {activeTab === "stats" && <AnalyticsTab users={users} parts={parts} />}
-        {activeTab === "users" && <UserManagementTab users={users} setUsers={setUsers} addToast={addToast} securitySettings={securitySettings} />}
+        {activeTab === "users" && (
+          <UserManagementTab
+            users={users}
+            setUsers={setUsers}
+            addToast={addToast}
+            securitySettings={securitySettings}
+            refreshUsers={refreshUsers}
+          />
+        )}
         {activeTab === "parts" && <InventoryTab parts={parts} setParts={setParts} addToast={addToast} />}
         {activeTab === "logs" && <SystemLogsTab logs={logs} addToast={addToast} />}
         {activeTab === "security" && <SecuritySettingsTab settings={securitySettings} setSettings={setSecuritySettings} addToast={addToast} />}
