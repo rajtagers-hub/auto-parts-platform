@@ -2,6 +2,7 @@
 import React, { useEffect, useState, useMemo } from 'react';
 import { supabase } from '@/lib/supabaseClient';
 import { useSearchParams, useRouter } from 'next/navigation';
+import Link from 'next/link';
 import { 
   Search, MapPin, Phone, MessageCircle, Package, Filter, X, ArrowLeft
 } from 'lucide-react';
@@ -77,7 +78,9 @@ export default function SearchClient() {
           <button onClick={() => router.push('/')} className="flex items-center gap-2 text-zinc-400 hover:text-white">
             <ArrowLeft size={18} /> <span className="text-[10px] font-black uppercase">Kthehu</span>
           </button>
-          <div className="text-xl font-black italic tracking-tighter uppercase">AUTO PJESË</div>
+          <Link href="/">
+            <img src="/autoforms.svg" alt="Auto Forms" className="h-8 w-auto" />
+          </Link>
           <div className="w-20"></div>
         </div>
       </header>
@@ -88,7 +91,7 @@ export default function SearchClient() {
         </h1>
         <p className="text-zinc-500 text-sm mb-8">{filteredParts.length} pjesë të gjetura</p>
 
-        {/* Filters – simplified for brevity; you can add your full filter UI here */}
+        {/* Filters */}
         <div className="flex flex-wrap gap-4 mb-8 pb-6 border-b border-white/5">
           <div className="relative flex-1 max-w-md">
             <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-zinc-600" size={16}/>
