@@ -33,6 +33,9 @@ export async function middleware(request: NextRequest) {
     return NextResponse.redirect(url)
   }
 
+  // Prevent caching of protected pages (fixes forward button after logout)
+  supabaseResponse.headers.set('Cache-Control', 'no-store, max-age=0, must-revalidate')
+
   return supabaseResponse
 }
 
