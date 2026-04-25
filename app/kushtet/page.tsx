@@ -15,14 +15,14 @@ export default function Kushtet() {
             <Shield className="w-6 h-6 text-blue-600 shrink-0 mt-1" />
             <div>
               <h2 className="text-white font-bold italic mb-2">1. Platforma Ndërmjetësuese</h2>
-              <p>AUTO PJESË është një platformë ndërmjetësuese sipas legjislacionit shqiptar. Ne nuk jemi pronarë të pjesëve të listuara dhe nuk mbajmë përgjegjësi për cilësinë, garancinë apo çmimet e vendosura nga shitësit.</p>
+              <p>Auto Forms është një platformë ndërmjetësuese sipas legjislacionit shqiptar. Ne nuk jemi pronarë të pjesëve të listuara dhe nuk mbajmë përgjegjësi për cilësinë, garancinë apo çmimet e vendosura nga shitësit.</p>
             </div>
           </div>
           <div className="flex items-start gap-4">
             <Scale className="w-6 h-6 text-blue-600 shrink-0 mt-1" />
             <div>
               <h2 className="text-white font-bold italic mb-2">2. Përgjegjësia e Shitësve</h2>
-              <p>Shitësit (pikat e skrapit dhe individët) janë përgjegjës për vërtetësinë e origjinës së pjesëve sipas Ligjit Nr. 9754. AUTO PJESË nuk garanton origjinalitetin apo funksionalitetin e produkteve.</p>
+              <p>Shitësit (pikat e skrapit dhe individët) janë përgjegjës për vërtetësinë e origjinës së pjesëve sipas Ligjit Nr. 9754. Auto Forms nuk garanton origjinalitetin apo funksionalitetin e produkteve.</p>
             </div>
           </div>
           <div className="flex items-start gap-4">
@@ -34,7 +34,7 @@ export default function Kushtet() {
           </div>
         </div>
         <footer className="mt-20 pt-8 border-t border-white/5 text-[9px] font-black tracking-[0.3em] text-zinc-700 uppercase">
-          <p>Auto Pjesë Shqipëri © 2026 – Të gjitha të drejtat e rezervuara</p>
+          <p>Auto Forms © 2026 – Të gjitha të drejtat e rezervuara</p>
           <p className="mt-2">Powered by Enklan Sh.p.k</p>
         </footer>
       </div>

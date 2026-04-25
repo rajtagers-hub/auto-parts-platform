@@ -15,7 +15,7 @@ export default function Privatesia() {
             <Shield className="w-6 h-6 text-blue-600 shrink-0 mt-1" />
             <div>
               <h2 className="text-white font-bold italic mb-2">Mbrojtja e të Dhënave</h2>
-              <p>Në përputhje me Ligjin Nr. 9887 "Për mbrojtjen e të dhënave personale", AUTO PJESË mbledh vetëm informacionin e nevojshëm për të lehtësuar kontaktin midis blerësve dhe shitësve. Këto të dhëna përfshijnë emrin, numrin e telefonit, dhe adresën e emailit (vetëm për shitësit).</p>
+              <p>Në përputhje me Ligjin Nr. 9887 "Për mbrojtjen e të dhënave personale", Auto Forms mbledh vetëm informacionin e nevojshëm për të lehtësuar kontaktin midis blerësve dhe shitësve. Këto të dhëna përfshijnë emrin, numrin e telefonit, dhe adresën e emailit (vetëm për shitësit).</p>
             </div>
           </div>
           <div className="flex items-start gap-4">
@@ -39,7 +39,7 @@ export default function Privatesia() {
           </div>
         </div>
         <footer className="mt-20 pt-8 border-t border-white/5 text-[9px] font-black tracking-[0.3em] text-zinc-700 uppercase">
-          <p>Auto Pjesë Shqipëri © 2026 – Të gjitha të drejtat e rezervuara</p>
+          <p>Auto Forms © 2026 – Të gjitha të drejtat e rezervuara</p>
           <p className="mt-2">Powered by Enklan Sh.p.k</p>
         </footer>
       </div>
