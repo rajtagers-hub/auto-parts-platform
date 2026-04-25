@@ -13,8 +13,11 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "Auto Pjesë",
-  description: "Platforma më e madhe e pjesëve të këmbimit në Shqipëri",
+  title: {
+    default: "Auto Forms Shqipëri",
+    template: "%s | Auto Forms Shqipëri",
+  },
+  description: "Platforma më e madhe për blerjen dhe shitjen e pjesëve të këmbimit në Shqipëri",
 };
 
 export default function RootLayout({
