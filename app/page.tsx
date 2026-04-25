@@ -1,7 +1,7 @@
 "use client";
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
-import Link from 'next/link';                // <-- added for logo link
+import Link from 'next/link';
 import { supabase } from '@/lib/supabaseClient';
 import { 
   ShieldCheck, ChevronRight, User, Globe, X, Scale, FileText, Mail, Phone,
@@ -56,7 +56,7 @@ export default function LandingPage() {
         <div className="absolute bottom-0 -right-4 w-96 h-96 bg-purple-600 rounded-full mix-blend-multiply filter blur-3xl animate-pulse delay-1000"></div>
       </div>
 
-      {/* Search Overlay (unchanged) */}
+      {/* Search Overlay */}
       {isSearchOpen && (
         <div className="fixed inset-0 z-50 bg-black/95 backdrop-blur-xl p-6 md:p-20 animate-in fade-in slide-in-from-bottom-4 duration-300">
           <button onClick={() => setIsSearchOpen(false)} className="absolute top-10 right-10 p-4 hover:bg-white/10 rounded-full transition-colors">
@@ -96,7 +96,7 @@ export default function LandingPage() {
         </div>
       )}
 
-      {/* Header – Logo replaced with image */}
+      {/* Header */}
       <nav className="fixed top-0 w-full z-40 bg-black/90 backdrop-blur-md border-b border-white/5 px-6 py-5">
         <div className="max-w-7xl mx-auto flex justify-between items-center">
           <Link href="/" className="flex items-center gap-2">
@@ -116,7 +116,7 @@ export default function LandingPage() {
         </div>
       </nav>
 
-      {/* Sliding Brands (unchanged) */}
+      {/* Sliding Brands */}
       <div className="relative w-full overflow-hidden bg-zinc-900/50 border-b border-white/5 py-5 mt-24">
         <div className="animate-marquee whitespace-nowrap flex items-center">
           {carBrands.map((b, i) => (
@@ -125,7 +125,7 @@ export default function LandingPage() {
         </div>
       </div>
 
-      {/* Hero Section (unchanged) */}
+      {/* Hero Section */}
       <section className="relative px-6 pt-24 pb-32 max-w-7xl mx-auto grid lg:grid-cols-2 gap-16 items-center">
         <div className="space-y-10">
           <div className="inline-flex items-center gap-3 px-4 py-1.5 rounded-full bg-blue-600/10 border border-blue-500/20 text-[10px] font-bold tracking-[0.2em] uppercase text-blue-400 animate-pulse">
@@ -147,7 +147,8 @@ export default function LandingPage() {
             </button>
           </div>
         </div>
-        {/* Floating Card (unchanged) */}
+
+        {/* Floating Card */}
         <div className="relative group lg:block hidden">
           <div className="absolute -inset-2 bg-linear-to-r from-blue-600/20 to-cyan-500/20 rounded-4xl blur-2xl group-hover:blur-3xl transition-all duration-700"></div>
           <div className="relative animate-float aspect-4/5 rounded-[2.5rem] border border-white/10 bg-zinc-950/80 backdrop-blur-xl overflow-hidden flex flex-col p-12 shadow-2xl">
@@ -157,7 +158,7 @@ export default function LandingPage() {
                 <span className="text-[9px] font-bold opacity-30 uppercase tracking-widest text-white">Modeli: 2024 Series</span>
               </div>
               <div className="px-5 py-2 rounded-full border border-white/10 text-[10px] font-black uppercase tracking-widest bg-zinc-900 shadow-inner text-white">
-                Autopjesë Albania
+                Auto Forms Albania
               </div>
             </div>
             <div className="mt-auto border-t border-white/5 pt-8">
@@ -168,7 +169,7 @@ export default function LandingPage() {
         </div>
       </section>
 
-      {/* Featured Parts Section (unchanged) */}
+      {/* Featured Parts Section */}
       <section className="px-6 pb-32 max-w-7xl mx-auto">
         <div className="flex justify-between items-end mb-12">
           <div>
@@ -219,7 +220,7 @@ export default function LandingPage() {
         )}
       </section>
 
-      {/* Stats Section (unchanged) */}
+      {/* Stats Section */}
       <section className="px-6 py-20 bg-linear-to-b from-black to-zinc-950 border-y border-white/5">
         <div className="max-w-7xl mx-auto grid grid-cols-1 md:grid-cols-3 gap-12 text-center">
           <div>
@@ -237,7 +238,7 @@ export default function LandingPage() {
         </div>
       </section>
 
-      {/* Footer – Logo and company name replaced with image */}
+      {/* Footer */}
       <footer className="bg-zinc-950 border-t border-white/5 px-6 py-20">
         <div className="max-w-7xl mx-auto">
           <div className="grid grid-cols-1 md:grid-cols-12 gap-16 mb-20">
@@ -268,7 +269,7 @@ export default function LandingPage() {
             <div className="flex flex-col md:flex-row justify-between gap-8 text-[10px] font-medium text-zinc-500 italic leading-relaxed">
               <div className="max-w-2xl uppercase text-zinc-500">
                 <p className="font-black mb-2 text-zinc-400 tracking-widest underline decoration-blue-600 underline-offset-4">Deklaratë Ligjore:</p>
-                AUTO PJESË nuk mban përgjegjësi për gjendjen teknike, cilësinë apo çmimet e produkteve të shpërndara nga pikat e autorizuara të skrapit.
+                Auto Forms nuk mban përgjegjësi për gjendjen teknike, cilësinë apo çmimet e produkteve të shpërndara nga pikat e autorizuara të skrapit.
               </div>
               <div className="md:text-right flex flex-col justify-end">
                 <div className="font-black tracking-[0.3em] text-white uppercase mb-1">© 2026 Të gjitha të drejtat e rezervuara</div>
