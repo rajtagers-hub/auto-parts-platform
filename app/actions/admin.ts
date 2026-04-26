@@ -1,45 +1,31 @@
 'use server';
-import { createServerClient } from '@supabase/ssr';
-import { cookies } from 'next/headers';
 import { revalidatePath } from 'next/cache';
 import { supabaseAdmin } from '@/lib/supabaseAdmin';
 
-async function getSupabase() {
-  const cookieStore = await cookies();
-  return createServerClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
-    {
-      cookies: {
-        get(name: string) { return cookieStore.get(name)?.value; },
-        set(name: string, value: string, options: any) { cookieStore.set({ name, value, ...options }); },
-        remove(name: string, options: any) { cookieStore.set({ name, value: '', ...options }); },
-      },
-    }
-  );
-}
+// ========== FETCH (using admin client to avoid RLS issues) ==========
 
-// ---------- FETCH ----------
 export async function getUsers() {
-  const supabase = await getSupabase();
-  const { data, error } = await supabase.from('users').select('*');
-  if (error) throw new Error(error.message);
+  const { data, error } = await supabaseAdmin.from('users').select('*');
+  if (error) throw new Error(`getUsers failed: ${error.message}`);
   return data;
 }
 
 export async function getParts() {
-  const supabase = await getSupabase();
-  const { data, error } = await supabase
+  const { data, error } = await supabaseAdmin
     .from('parts')
     .select('*, users!seller_id(name)')
     .order('created_at', { ascending: false });
-  if (error) throw new Error(error.message);
+  if (error) throw new Error(`getParts failed: ${error.message}`);
   return data;
 }
 
 export async function getSecuritySettings() {
-  const supabase = await getSupabase();
-  let { data, error } = await supabase.from('security_settings').select('*').single();
+  let { data, error } = await supabaseAdmin
+    .from('security_settings')
+    .select('*')
+    .single();
+
+  // If no settings exist, create default ones
   if (error && error.code === 'PGRST116') {
     const defaultSettings = {
       id: 1,
@@ -50,52 +36,43 @@ export async function getSecuritySettings() {
       auto_suspend_debt_days: 30,
       auto_hide_listings_on_debt: true,
     };
-    await supabase.from('security_settings').insert(defaultSettings);
-    const { data: newData } = await supabase.from('security_settings').select('*').single();
+    await supabaseAdmin.from('security_settings').insert(defaultSettings);
+    const { data: newData } = await supabaseAdmin
+      .from('security_settings')
+      .select('*')
+      .single();
     data = newData;
   } else if (error) {
-    throw new Error(error.message);
+    throw new Error(`getSecuritySettings failed: ${error.message}`);
   }
   return data;
 }
 
-// ---------- MUTATIONS ----------
-export async function updateUserStatus(userId: string, newStatus: string) {
-  console.log('[updateUserStatus] Starting:', { userId, newStatus });
-  try {
-    // First, verify the user exists
-    const { data: existingUser, error: fetchError } = await supabaseAdmin
-      .from('users')
-      .select('id, status')
-      .eq('id', userId)
-      .single();
-    if (fetchError) {
-      console.error('[updateUserStatus] Fetch error:', fetchError);
-      throw new Error(`User not found: ${fetchError.message}`);
-    }
-    console.log('[updateUserStatus] Current status:', existingUser.status);
+// ========== MUTATIONS ==========
 
-    // Perform update
+export async function updateUserStatus(userId: string, newStatus: string) {
+  try {
+    // Update and return the updated row
     const { data, error } = await supabaseAdmin
       .from('users')
       .update({ status: newStatus })
       .eq('id', userId)
-      .select(); // Returns the updated row
+      .select();  // returns the updated record
 
     if (error) {
-      console.error('[updateUserStatus] Update error:', error);
+      console.error('[updateUserStatus] DB error:', error);
       throw new Error(error.message);
     }
     if (!data || data.length === 0) {
-      console.error('[updateUserStatus] No data returned after update');
-      throw new Error('Update succeeded but no data returned');
+      throw new Error('No user returned after update');
     }
-    console.log('[updateUserStatus] Update successful, updated user:', data[0]);
+
     revalidatePath('/dashboard');
     return { success: true, updatedUser: data[0] };
   } catch (err: any) {
-    console.error('[updateUserStatus] Caught error:', err);
-    throw err;
+    console.error('[updateUserStatus] caught:', err);
+    // Re‑throw so the client sees the exact error
+    throw new Error(err.message || 'Unknown error in updateUserStatus');
   }
 }
 
@@ -110,6 +87,7 @@ export async function verifyUserLicense(userId: string) {
 }
 
 export async function markDebtPaid(userId: string, amount: number) {
+  // Record the payment
   await supabaseAdmin.from('payments').insert({
     user_id: userId,
     amount,
@@ -117,12 +95,18 @@ export async function markDebtPaid(userId: string, amount: number) {
     description: 'Admin marked debt as paid',
     recorded_by: 'admin'
   });
-  const { data: user } = await supabaseAdmin
+
+  // Get current total_paid
+  const { data: user, error: fetchError } = await supabaseAdmin
     .from('users')
     .select('total_paid')
     .eq('id', userId)
     .single();
+  if (fetchError) throw new Error(fetchError.message);
+
   const newTotalPaid = (user?.total_paid || 0) + amount;
+
+  // Update user
   const { error } = await supabaseAdmin
     .from('users')
     .update({
@@ -132,11 +116,13 @@ export async function markDebtPaid(userId: string, amount: number) {
     })
     .eq('id', userId);
   if (error) throw new Error(error.message);
+
   revalidatePath('/dashboard');
   return { success: true };
 }
 
 export async function updateSecuritySettings(settings: any) {
+  // Convert camelCase to snake_case for the database
   const dbSettings = {
     id: 1,
     mfa_required: settings.mfaRequired,
