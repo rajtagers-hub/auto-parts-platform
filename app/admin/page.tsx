@@ -5,7 +5,7 @@ import {
   Ban, TrendingUp, Wallet, ArrowUpRight,
   Lock, LogOut, Zap, X, AlertTriangle,
   Trash2, Flag, Bell, User,
-  Send, Car, DollarSign, FileText
+  Car, DollarSign, FileText
 } from "lucide-react";
 import {
   LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip,
@@ -29,7 +29,6 @@ import {
 // --- TYPES ---
 type UserType = "Graveyard" | "Individual" | "Admin";
 type UserStatus = "Active" | "Suspended" | "Blocked" | "Pending";
-type Plan = "Free" | "Premium" | "Enterprise";
 
 interface PlatformUser {
   id: string;
@@ -37,7 +36,6 @@ interface PlatformUser {
   email: string;
   userType: UserType;
   status: UserStatus;
-  plan: Plan;
   totalListings: number;
   totalPaid: number;
   currentDebt: number;
@@ -45,7 +43,6 @@ interface PlatformUser {
   joinDate: string;
   businessLicense?: string;
   licenseVerified?: boolean;
-  phone?: string;
   city?: string;
 }
 
@@ -94,8 +91,7 @@ const mockAnalyticsData = [
 ];
 
 // --- Helper Components ---
-interface NavBtnProps { label: string; icon: React.ElementType; active: boolean; onClick: () => void; }
-function NavBtn({ label, icon: Icon, active, onClick }: NavBtnProps) {
+function NavBtn({ label, icon: Icon, active, onClick }: { label: string; icon: any; active: boolean; onClick: () => void }) {
   return (
     <button onClick={onClick} className={`w-full flex items-center px-6 py-4 rounded-2xl font-black italic uppercase text-[11px] tracking-widest transition-all ${active ? "bg-[#D4AF37] text-black shadow-lg" : "text-zinc-500 hover:bg-white/5 hover:text-white"}`}>
       <Icon size={18} className="mr-4" /> {label}
@@ -103,25 +99,34 @@ function NavBtn({ label, icon: Icon, active, onClick }: NavBtnProps) {
   );
 }
 
-interface StatCardProps { label: string; val: string | number; icon: React.ElementType; trend?: string; }
-function StatCard({ label, val, icon: Icon, trend }: StatCardProps) {
+function StatCard({ label, val, icon: Icon, trend }: { label: string; val: string | number; icon: any; trend?: string }) {
   return (
     <div className="bg-[#0A0A0A] border border-white/5 p-6 rounded-2xl hover:border-[#D4AF37]/30">
-      <div className="flex justify-between items-start mb-4"><div className="p-3 bg-white/5 rounded-xl"><Icon size={20} className="text-[#D4AF37]" /></div>{trend && <span className="text-green-500 text-xs flex items-center"><ArrowUpRight size={12}/> {trend}</span>}</div>
+      <div className="flex justify-between items-start mb-4">
+        <div className="p-3 bg-white/5 rounded-xl"><Icon size={20} className="text-[#D4AF37]" /></div>
+        {trend && <span className="text-green-500 text-xs flex items-center"><ArrowUpRight size={12}/> {trend}</span>}
+      </div>
       <p className="text-[10px] font-black text-zinc-600 uppercase">{label}</p>
       <p className="text-3xl font-black italic text-white mt-1">{val}</p>
     </div>
   );
 }
 
-interface FilterChipProps { label: string; active: boolean; onClick: () => void; }
-function FilterChip({ label, active, onClick }: FilterChipProps) {
-  return <button onClick={onClick} className={`px-3 py-1.5 rounded-full text-[9px] font-black uppercase italic ${active ? "bg-[#D4AF37] text-black" : "bg-white/5 text-zinc-400 hover:bg-white/10"}`}>{label}</button>;
+function FilterChip({ label, active, onClick }: { label: string; active: boolean; onClick: () => void }) {
+  return (
+    <button onClick={onClick} className={`px-3 py-1.5 rounded-full text-[9px] font-black uppercase italic ${active ? "bg-[#D4AF37] text-black" : "bg-white/5 text-zinc-400 hover:bg-white/10"}`}>
+      {label}
+    </button>
+  );
 }
 
-interface ToastMessageProps { toast: Toast; }
-function ToastMessage({ toast }: ToastMessageProps) {
-  return <div className={`p-4 rounded-xl shadow-lg border-l-4 ${toast.variant === "error" ? "bg-red-900/90 border-red-500" : toast.variant === "success" ? "bg-green-900/90 border-green-500" : "bg-zinc-800 border-[#D4AF37]"}`}><p className="text-sm font-bold text-white">{toast.title}</p>{toast.description && <p className="text-xs text-zinc-300">{toast.description}</p>}</div>;
+function ToastMessage({ toast }: { toast: Toast }) {
+  return (
+    <div className={`p-4 rounded-xl shadow-lg border-l-4 ${toast.variant === "error" ? "bg-red-900/90 border-red-500" : toast.variant === "success" ? "bg-green-900/90 border-green-500" : "bg-zinc-800 border-[#D4AF37]"}`}>
+      <p className="text-sm font-bold text-white">{toast.title}</p>
+      {toast.description && <p className="text-xs text-zinc-300">{toast.description}</p>}
+    </div>
+  );
 }
 
 // --- Analytics Tab ---
@@ -140,14 +145,38 @@ function AnalyticsTab({ users, parts }: { users: PlatformUser[]; parts: Part[] }
         <StatCard label="Market Growth" val={growth} icon={TrendingUp} />
       </div>
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
-        <div className="bg-[#0A0A0A] p-6 rounded-2xl"><h3 className="text-white font-bold mb-4">Revenue Trend (€)</h3><ResponsiveContainer width="100%" height={300}><LineChart data={mockAnalyticsData}><CartesianGrid strokeDasharray="3 3" stroke="#333" /><XAxis dataKey="month" stroke="#888" /><YAxis stroke="#888" /><Tooltip contentStyle={{ backgroundColor: "#111", borderColor: "#D4AF37" }} /><Line type="monotone" dataKey="revenue" stroke="#D4AF37" strokeWidth={2} /></LineChart></ResponsiveContainer></div>
-        <div className="bg-[#0A0A0A] p-6 rounded-2xl"><h3 className="text-white font-bold mb-4">Users & Listings</h3><ResponsiveContainer width="100%" height={300}><BarChart data={mockAnalyticsData}><CartesianGrid strokeDasharray="3 3" stroke="#333" /><XAxis dataKey="month" stroke="#888" /><YAxis stroke="#888" /><Tooltip contentStyle={{ backgroundColor: "#111", borderColor: "#D4AF37" }} /><Legend /><Bar dataKey="users" fill="#D4AF37" /><Bar dataKey="listings" fill="#AA8419" /></BarChart></ResponsiveContainer></div>
+        <div className="bg-[#0A0A0A] p-6 rounded-2xl">
+          <h3 className="text-white font-bold mb-4">Revenue Trend (€)</h3>
+          <ResponsiveContainer width="100%" height={300}>
+            <LineChart data={mockAnalyticsData}>
+              <CartesianGrid strokeDasharray="3 3" stroke="#333" />
+              <XAxis dataKey="month" stroke="#888" />
+              <YAxis stroke="#888" />
+              <Tooltip contentStyle={{ backgroundColor: "#111", borderColor: "#D4AF37" }} />
+              <Line type="monotone" dataKey="revenue" stroke="#D4AF37" strokeWidth={2} />
+            </LineChart>
+          </ResponsiveContainer>
+        </div>
+        <div className="bg-[#0A0A0A] p-6 rounded-2xl">
+          <h3 className="text-white font-bold mb-4">Users & Listings</h3>
+          <ResponsiveContainer width="100%" height={300}>
+            <BarChart data={mockAnalyticsData}>
+              <CartesianGrid strokeDasharray="3 3" stroke="#333" />
+              <XAxis dataKey="month" stroke="#888" />
+              <YAxis stroke="#888" />
+              <Tooltip contentStyle={{ backgroundColor: "#111", borderColor: "#D4AF37" }} />
+              <Legend />
+              <Bar dataKey="users" fill="#D4AF37" />
+              <Bar dataKey="listings" fill="#AA8419" />
+            </BarChart>
+          </ResponsiveContainer>
+        </div>
       </div>
     </div>
   );
 }
 
-// --- User Management Tab ---
+// --- User Management Tab (with persistent status update) ---
 interface UserManagementTabProps {
   users: PlatformUser[];
   setUsers: React.Dispatch<React.SetStateAction<PlatformUser[]>>;
@@ -184,7 +213,7 @@ function UserManagementTab({ users, setUsers, addToast, securitySettings, refres
       if (result.success && result.updatedUser) {
         setUsers(prev => prev.map(u => u.id === userId ? { ...u, status: result.updatedUser.status } : u));
         addToast({ title: `Status updated to ${newStatus}`, variant: "success" });
-        await refreshUsers();
+        await refreshUsers(); // sync with DB (optional, but safe)
       } else {
         throw new Error("Update failed – no updated user returned");
       }
@@ -299,11 +328,7 @@ function UserManagementTab({ users, setUsers, addToast, securitySettings, refres
                 <td className="px-6 py-5 text-right space-x-2" onClick={(e) => e.stopPropagation()}>
                   <button onClick={() => generateUserReport(user)} className="text-blue-400 hover:text-white p-1.5 rounded-lg" title="Generate Report"><FileText size={16}/></button>
                   <button onClick={() => { setSelectedUser(user); setShowPaymentModal(true); }} className="text-[#D4AF37] hover:text-white"><DollarSign size={16}/></button>
-                  <button 
-                    onClick={() => handleStatusChange(user.id, user.status === "Active" ? "Suspended" : "Active")}
-                    disabled={updatingUserId === user.id}
-                    className="text-yellow-500 disabled:opacity-50"
-                  >
+                  <button onClick={() => handleStatusChange(user.id, user.status === "Active" ? "Suspended" : "Active")} disabled={updatingUserId === user.id} className="text-yellow-500 disabled:opacity-50">
                     {updatingUserId === user.id ? <span className="inline-block w-4 h-4 border-2 border-yellow-500 border-t-transparent rounded-full animate-spin" /> : <Ban size={16}/>}
                   </button>
                 </td>
@@ -326,13 +351,7 @@ function UserManagementTab({ users, setUsers, addToast, securitySettings, refres
 }
 
 // --- UserDetailsModal ---
-interface UserDetailsModalProps {
-  user: PlatformUser;
-  onClose: () => void;
-  onVerifyLicense: (userId: string) => void;
-  addToast: (toast: Omit<Toast, "id">) => void;
-}
-function UserDetailsModal({ user, onClose, onVerifyLicense }: UserDetailsModalProps) {
+function UserDetailsModal({ user, onClose, onVerifyLicense, addToast }: { user: PlatformUser; onClose: () => void; onVerifyLicense: (userId: string) => void; addToast: (toast: Omit<Toast, "id">) => void }) {
   const [showLicense, setShowLicense] = useState(false);
   return (
     <div className="fixed inset-0 z-50 bg-black/70 flex items-center justify-center p-6">
@@ -363,12 +382,7 @@ function UserDetailsModal({ user, onClose, onVerifyLicense }: UserDetailsModalPr
 }
 
 // --- PaymentModal ---
-interface PaymentModalProps {
-  user: PlatformUser;
-  onClose: () => void;
-  onMarkPaid: (userId: string, amount: number) => void;
-}
-function PaymentModal({ user, onClose, onMarkPaid }: PaymentModalProps) {
+function PaymentModal({ user, onClose, onMarkPaid }: { user: PlatformUser; onClose: () => void; onMarkPaid: (userId: string, amount: number) => void }) {
   const [amount, setAmount] = useState<number>(user.currentDebt ?? 0);
   return (
     <div className="fixed inset-0 z-50 bg-black/70 flex items-center justify-center p-6">
@@ -376,15 +390,7 @@ function PaymentModal({ user, onClose, onMarkPaid }: PaymentModalProps) {
         <h3 className="text-xl font-black uppercase text-white">Mark Debt as Paid</h3>
         <p className="text-zinc-400 mt-2">User: {user.name}</p>
         <p className="text-red-400 font-bold">Current Debt: €{user.currentDebt ?? 0}</p>
-        <input
-          type="number"
-          value={isNaN(amount) ? 0 : amount}
-          onChange={e => {
-            const val = parseFloat(e.target.value);
-            setAmount(isNaN(val) ? 0 : val);
-          }}
-          className="w-full bg-white/5 border border-white/10 rounded-xl p-3 mt-4 text-white"
-        />
+        <input type="number" value={isNaN(amount) ? 0 : amount} onChange={e => { const val = parseFloat(e.target.value); setAmount(isNaN(val) ? 0 : val); }} className="w-full bg-white/5 border border-white/10 rounded-xl p-3 mt-4 text-white" />
         <div className="flex gap-3 mt-6">
           <button onClick={onClose} className="flex-1 bg-white/5 py-2 rounded">Cancel</button>
           <button onClick={() => onMarkPaid(user.id, amount)} className="flex-1 bg-green-600 py-2 rounded">Confirm Payment</button>
@@ -395,15 +401,9 @@ function PaymentModal({ user, onClose, onMarkPaid }: PaymentModalProps) {
 }
 
 // --- Inventory Tab ---
-interface InventoryTabProps {
-  parts: Part[];
-  setParts: React.Dispatch<React.SetStateAction<Part[]>>;
-  addToast: (toast: Omit<Toast, "id">) => void;
-}
-function InventoryTab({ parts, setParts, addToast }: InventoryTabProps) {
+function InventoryTab({ parts, setParts, addToast }: { parts: Part[]; setParts: React.Dispatch<React.SetStateAction<Part[]>>; addToast: (toast: Omit<Toast, "id">) => void }) {
   const [search, setSearch] = useState("");
   const filtered = parts.filter(p => p.title.toLowerCase().includes(search.toLowerCase()) || p.sellerName.toLowerCase().includes(search.toLowerCase()));
-
   const handleFlag = async (id: string) => {
     try {
       await updatePartStatus(id, 'Flagged');
@@ -422,20 +422,13 @@ function InventoryTab({ parts, setParts, addToast }: InventoryTabProps) {
       addToast({ title: err.message || "Error deleting part", variant: "error" });
     }
   };
-
   return (
     <div className="space-y-6">
       <div className="flex justify-between"><h2 className="text-3xl font-black italic uppercase text-white">Parts Inventory</h2><input placeholder="Search..." value={search} onChange={e => setSearch(e.target.value)} className="bg-white/5 border border-white/10 rounded-xl px-4 py-2 text-white w-64"/></div>
       <div className="bg-[#0A0A0A] border border-white/5 rounded-3xl overflow-x-auto">
         <table className="w-full min-w-200">
           <thead className="bg-white/5 text-[9px] font-black uppercase text-[#D4AF37]/60">
-            <tr>
-              <th className="px-6 py-5">Part</th>
-              <th className="px-6 py-5">Seller</th>
-              <th className="px-6 py-5">Price</th>
-              <th className="px-6 py-5">Status</th>
-              <th className="px-6 py-5">Actions</th>
-            </tr>
+            <tr><th className="px-6 py-5">Part</th><th className="px-6 py-5">Seller</th><th className="px-6 py-5">Price</th><th className="px-6 py-5">Status</th><th className="px-6 py-5">Actions</th></tr>
           </thead>
           <tbody className="divide-y divide-white/5">
             {filtered.map(part => (
@@ -454,7 +447,7 @@ function InventoryTab({ parts, setParts, addToast }: InventoryTabProps) {
   );
 }
 
-// --- System Logs Tab ---
+// --- System Logs Tab (placeholder) ---
 function SystemLogsTab({ logs, addToast }: { logs: LogEntry[]; addToast: (toast: Omit<Toast, "id">) => void }) {
   return (
     <div className="space-y-6">
@@ -462,12 +455,7 @@ function SystemLogsTab({ logs, addToast }: { logs: LogEntry[]; addToast: (toast:
       <div className="bg-[#0A0A0A] border border-white/5 rounded-3xl overflow-x-auto">
         <table className="w-full min-w-175">
           <thead className="bg-white/5 text-[9px] font-black uppercase text-[#D4AF37]/60">
-            <tr>
-              <th className="px-6 py-5">Timestamp</th>
-              <th className="px-6 py-5">User</th>
-              <th className="px-6 py-5">Action</th>
-              <th className="px-6 py-5">Level</th>
-            </tr>
+            <tr><th className="px-6 py-5">Timestamp</th><th className="px-6 py-5">User</th><th className="px-6 py-5">Action</th><th className="px-6 py-5">Level</th></tr>
           </thead>
           <tbody>
             {logs.map(log => (
@@ -486,17 +474,11 @@ function SystemLogsTab({ logs, addToast }: { logs: LogEntry[]; addToast: (toast:
 }
 
 // --- Security Settings Tab ---
-interface SecuritySettingsTabProps {
-  settings: SecuritySettings;
-  setSettings: React.Dispatch<React.SetStateAction<SecuritySettings>>;
-  addToast: (toast: Omit<Toast, "id">) => void;
-}
-function SecuritySettingsTab({ settings, setSettings, addToast }: SecuritySettingsTabProps) {
+function SecuritySettingsTab({ settings, setSettings, addToast }: { settings: SecuritySettings; setSettings: React.Dispatch<React.SetStateAction<SecuritySettings>>; addToast: (toast: Omit<Toast, "id">) => void }) {
   const [newIp, setNewIp] = useState("");
   const [newBlockedIp, setNewBlockedIp] = useState("");
   const ipWhitelist = settings.ipWhitelist || [];
   const blockedIPs = settings.blockedIPs || [];
-
   const saveSettings = async () => {
     try {
       await updateSecuritySettings(settings);
@@ -505,12 +487,10 @@ function SecuritySettingsTab({ settings, setSettings, addToast }: SecuritySettin
       addToast({ title: err.message || "Error saving", variant: "error" });
     }
   };
-
   const addWhitelist = () => { if (newIp && !ipWhitelist.includes(newIp)) setSettings({ ...settings, ipWhitelist: [...ipWhitelist, newIp] }); setNewIp(""); };
   const removeWhitelist = (ip: string) => setSettings({ ...settings, ipWhitelist: ipWhitelist.filter(i => i !== ip) });
   const addBlocked = () => { if (newBlockedIp && !blockedIPs.includes(newBlockedIp)) setSettings({ ...settings, blockedIPs: [...blockedIPs, newBlockedIp] }); setNewBlockedIp(""); };
   const removeBlocked = (ip: string) => setSettings({ ...settings, blockedIPs: blockedIPs.filter(i => i !== ip) });
-
   return (
     <div className="max-w-3xl space-y-8">
       <h2 className="text-3xl font-black italic uppercase text-white">Security Settings</h2>
@@ -528,19 +508,14 @@ function SecuritySettingsTab({ settings, setSettings, addToast }: SecuritySettin
 }
 
 // --- Admin Profile Modal ---
-interface AdminProfileModalProps {
-  onClose: () => void;
-  addToast: (toast: Omit<Toast, "id">) => void;
-}
-function AdminProfileModal({ onClose, addToast }: AdminProfileModalProps) {
+function AdminProfileModal({ onClose, addToast }: { onClose: () => void; addToast: (toast: Omit<Toast, "id">) => void }) {
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
   const [currentPassword, setCurrentPassword] = useState("");
   const [newPassword, setNewPassword] = useState("");
   const [confirm, setConfirm] = useState("");
-
   useEffect(() => {
-    const loadProfile = async () => {
+    const load = async () => {
       try {
         const { getProfile } = await import('@/app/actions/profile');
         const data = await getProfile();
@@ -550,18 +525,11 @@ function AdminProfileModal({ onClose, addToast }: AdminProfileModalProps) {
         addToast({ title: "Error loading profile", variant: "error" });
       }
     };
-    loadProfile();
+    load();
   }, []);
-
   const handleSave = async () => {
-    if (newPassword && newPassword !== confirm) {
-      addToast({ title: "Passwords do not match", variant: "error" });
-      return;
-    }
-    if (newPassword && !currentPassword) {
-      addToast({ title: "Current password required", variant: "error" });
-      return;
-    }
+    if (newPassword && newPassword !== confirm) return addToast({ title: "Passwords do not match", variant: "error" });
+    if (newPassword && !currentPassword) return addToast({ title: "Current password required", variant: "error" });
     try {
       const { updateProfile } = await import('@/app/actions/profile');
       await updateProfile(name, currentPassword, newPassword);
@@ -571,7 +539,6 @@ function AdminProfileModal({ onClose, addToast }: AdminProfileModalProps) {
       addToast({ title: err.message || "Error updating profile", variant: "error" });
     }
   };
-
   return (
     <div className="fixed inset-0 z-50 bg-black/70 flex items-center justify-center p-6">
       <div className="bg-[#0A0A0A] border border-white/10 rounded-2xl p-6 max-w-md w-full">
@@ -599,7 +566,6 @@ export default function AdminDashboard() {
   const [showProfileModal, setShowProfileModal] = useState(false);
   const [notificationCount, setNotificationCount] = useState(0);
   const [loading, setLoading] = useState(true);
-
   const [users, setUsers] = useState<PlatformUser[]>([]);
   const [parts, setParts] = useState<Part[]>([]);
   const [logs, setLogs] = useState<LogEntry[]>([]);
@@ -614,58 +580,27 @@ export default function AdminDashboard() {
 
   const addToast = (toast: Omit<Toast, "id">) => {
     const id = Math.random().toString(36).substring(2, 9);
-    setToasts((prev) => [...prev, { id, ...toast }]);
-    setTimeout(() => setToasts((prev) => prev.filter((t) => t.id !== id)), 4000);
+    setToasts(prev => [...prev, { id, ...toast }]);
+    setTimeout(() => setToasts(prev => prev.filter(t => t.id !== id)), 4000);
   };
 
   const refreshUsers = async () => {
     try {
-      const usersData = await getUsers();
-      setUsers(usersData.map((u: any) => ({ ...u, userType: u.user_type })));
+      const data = await getUsers();
+      setUsers(data.map((u: any) => ({ ...u, userType: u.user_type })));
     } catch (err) {
       console.error(err);
       addToast({ title: "Error refreshing users", variant: "error" });
     }
   };
 
-  const refreshParts = async () => {
-    try {
-      const partsData = await getParts();
-      setParts(partsData.map((p: any) => ({
-        id: p.id,
-        title: p.title,
-        price: p.price,
-        sellerId: p.seller_id,
-        sellerName: p.users?.name || "Unknown",
-        condition: p.condition || "Used",
-        status: p.status,
-        createdAt: p.created_at.split("T")[0],
-      })));
-    } catch (err) {
-      console.error(err);
-    }
-  };
-
   useEffect(() => {
-    const loadData = async () => {
+    const load = async () => {
       setLoading(true);
       try {
-        const [usersData, partsData, settingsData] = await Promise.all([
-          getUsers(),
-          getParts(),
-          getSecuritySettings(),
-        ]);
+        const [usersData, partsData, settingsData] = await Promise.all([getUsers(), getParts(), getSecuritySettings()]);
         setUsers(usersData.map((u: any) => ({ ...u, userType: u.user_type })));
-        setParts(partsData.map((p: any) => ({
-          id: p.id,
-          title: p.title,
-          price: p.price,
-          sellerId: p.seller_id,
-          sellerName: p.users?.name || "Unknown",
-          condition: p.condition || "Used",
-          status: p.status,
-          createdAt: p.created_at.split("T")[0],
-        })));
+        setParts(partsData.map((p: any) => ({ id: p.id, title: p.title, price: p.price, sellerId: p.seller_id, sellerName: p.users?.name || "Unknown", condition: p.condition || "Used", status: p.status, createdAt: p.created_at.split("T")[0] })));
         setSecuritySettings(settingsData);
         setLogs([]);
       } catch (err) {
@@ -675,7 +610,7 @@ export default function AdminDashboard() {
         setLoading(false);
       }
     };
-    loadData();
+    load();
   }, []);
 
   const handleLogout = async () => {
@@ -683,21 +618,17 @@ export default function AdminDashboard() {
     router.push("/login");
   };
 
-  if (loading) {
-    return <div className="min-h-screen bg-[#050505] flex items-center justify-center text-[#D4AF37]">Loading Admin Panel...</div>;
-  }
+  if (loading) return <div className="min-h-screen bg-black flex items-center justify-center text-[#D4AF37]">Loading Admin Panel...</div>;
 
   return (
     <div className="min-h-screen bg-[#050505] text-zinc-400 font-sans flex">
+      {/* Sidebar */}
       <aside className={`fixed md:relative z-50 w-72 bg-[#080808] border-r border-[#D4AF37]/10 flex flex-col transition-transform duration-300 ${sidebarOpen ? "translate-x-0" : "-translate-x-full md:translate-x-0"}`}>
         <div className="p-8 flex flex-col h-full">
           <div className="flex items-center justify-between mb-12">
             <div className="flex items-center gap-3">
               <div className="w-10 h-10 bg-linear-to-br from-[#D4AF37] to-[#AA8419] rounded-xl flex items-center justify-center"><ShieldCheck size={22} className="text-black" /></div>
-              <div>
-                <h1 className="text-xl font-black italic uppercase text-white">Auto Forms</h1>
-                <p className="text-[9px] text-[#D4AF37] font-bold tracking-[0.3em] uppercase">Admin Center</p>
-              </div>
+              <div><h1 className="text-xl font-black italic uppercase text-white">Auto Forms</h1><p className="text-[9px] text-[#D4AF37] font-bold tracking-[0.3em] uppercase">Admin Center</p></div>
             </div>
             <button className="md:hidden text-zinc-400" onClick={() => setSidebarOpen(false)}><X size={20} /></button>
           </div>
@@ -719,17 +650,9 @@ export default function AdminDashboard() {
         </div>
       </aside>
       <main className="flex-1 overflow-y-auto p-4 md:p-10">
-        <div className="fixed bottom-4 right-4 z-50 space-y-2">{toasts.map((toast) => <ToastMessage key={toast.id} toast={toast} />)}</div>
+        <div className="fixed bottom-4 right-4 z-50 space-y-2">{toasts.map(toast => <ToastMessage key={toast.id} toast={toast} />)}</div>
         {activeTab === "stats" && <AnalyticsTab users={users} parts={parts} />}
-        {activeTab === "users" && (
-          <UserManagementTab
-            users={users}
-            setUsers={setUsers}
-            addToast={addToast}
-            securitySettings={securitySettings}
-            refreshUsers={refreshUsers}
-          />
-        )}
+        {activeTab === "users" && <UserManagementTab users={users} setUsers={setUsers} addToast={addToast} securitySettings={securitySettings} refreshUsers={refreshUsers} />}
         {activeTab === "parts" && <InventoryTab parts={parts} setParts={setParts} addToast={addToast} />}
         {activeTab === "logs" && <SystemLogsTab logs={logs} addToast={addToast} />}
         {activeTab === "security" && <SecuritySettingsTab settings={securitySettings} setSettings={setSecuritySettings} addToast={addToast} />}
