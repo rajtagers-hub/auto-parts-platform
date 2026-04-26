@@ -13,8 +13,8 @@ import {
 } from "recharts";
 import { supabase } from "@/lib/supabaseClient";
 import { useRouter } from "next/navigation";
-import jsPDF from 'jspdf';
-import autoTable from 'jspdf-autotable';
+import jsPDF from "jspdf";
+import autoTable from "jspdf-autotable";
 import {
   getUsers,
   getParts,
@@ -147,7 +147,7 @@ function AnalyticsTab({ users, parts }: { users: PlatformUser[]; parts: Part[] }
   );
 }
 
-// --- User Management Tab (with fixed status update) ---
+// --- User Management Tab ---
 interface UserManagementTabProps {
   users: PlatformUser[];
   setUsers: React.Dispatch<React.SetStateAction<PlatformUser[]>>;
@@ -182,9 +182,7 @@ function UserManagementTab({ users, setUsers, addToast, securitySettings, refres
     try {
       const result = await updateUserStatus(userId, newStatus);
       if (result.success && result.updatedUser) {
-        setUsers(prev => prev.map(u => 
-          u.id === userId ? { ...u, status: result.updatedUser.status } : u
-        ));
+        setUsers(prev => prev.map(u => u.id === userId ? { ...u, status: result.updatedUser.status } : u));
         addToast({ title: `Status updated to ${newStatus}`, variant: "success" });
         await refreshUsers();
       } else {
