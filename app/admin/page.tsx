@@ -27,26 +27,31 @@ export default function AdminDashboard() {
   }, []);
 
   const toggleStatus = async (userId: string, currentStatus: string) => {
-    const newStatus = currentStatus === "Active" ? "Suspended" : "Active";
-    setUpdating(userId);
-    try {
-      const result = await updateUserStatus(userId, newStatus);
-      if (result.success && result.updatedUser) {
-        setUsers(prev =>
-          prev.map(u =>
-            u.id === userId ? { ...u, status: result.updatedUser.status } : u
-          )
-        );
-      } else {
-        throw new Error("Update failed");
-      }
-    } catch (err: any) {
-      alert(err.message);
-    } finally {
-      setUpdating(null);
+  const newStatus = currentStatus === "Active" ? "Suspended" : "Active";
+  setUpdating(userId);
+  try {
+    const res = await fetch("/api/admin/update-status", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ userId, newStatus }),
+    });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.error || "Update failed");
+    if (data.success && data.updatedUser) {
+      setUsers(prev =>
+        prev.map(u =>
+          u.id === userId ? { ...u, status: data.updatedUser.status } : u
+        )
+      );
+    } else {
+      throw new Error("Update failed");
     }
-  };
-
+  } catch (err: any) {
+    alert(err.message);
+  } finally {
+    setUpdating(null);
+  }
+};
   const handleLogout = async () => {
     await supabase.auth.signOut();
     router.push("/login");
