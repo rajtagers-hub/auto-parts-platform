@@ -20,62 +20,56 @@ export async function getParts() {
 }
 
 export async function getSecuritySettings() {
-  // Use maybeSingle() to avoid error when no rows
-  let { data, error } = await supabaseAdmin
-    .from('security_settings')
-    .select('*')
-    .maybeSingle();
-
-  // If the table doesn't exist, error will be about relation; we return defaults
-  if (error && error.message.includes('does not exist')) {
-    console.warn('security_settings table missing, using defaults');
-    return {
-      id: 1,
-      mfa_required: false,
-      session_timeout: 30,
-      ip_whitelist: [],
-      blocked_ips: [],
-      auto_suspend_debt_days: 30,
-      auto_hide_listings_on_debt: true,
-    };
-  }
-
-  if (error) {
-    console.error('getSecuritySettings error:', error);
-    // Return defaults instead of throwing to keep dashboard running
-    return {
-      id: 1,
-      mfa_required: false,
-      session_timeout: 30,
-      ip_whitelist: [],
-      blocked_ips: [],
-      auto_suspend_debt_days: 30,
-      auto_hide_listings_on_debt: true,
-    };
-  }
-
-  if (!data) {
-    // No row exists – create one
-    const defaultSettings = {
-      id: 1,
-      mfa_required: false,
-      session_timeout: 30,
-      ip_whitelist: [],
-      blocked_ips: [],
-      auto_suspend_debt_days: 30,
-      auto_hide_listings_on_debt: true,
-    };
-    const { error: insertError } = await supabaseAdmin
+  try {
+    const { data, error } = await supabaseAdmin
       .from('security_settings')
-      .insert(defaultSettings);
-    if (insertError) {
-      console.error('Failed to insert default security_settings:', insertError);
+      .select('*')
+      .maybeSingle();
+
+    if (error) {
+      console.error('getSecuritySettings error:', error);
+      // Return defaults instead of crashing
+      return {
+        id: 1,
+        mfa_required: false,
+        session_timeout: 30,
+        ip_whitelist: [],
+        blocked_ips: [],
+        auto_suspend_debt_days: 30,
+        auto_hide_listings_on_debt: true,
+      };
+    }
+
+    if (!data) {
+      const defaultSettings = {
+        id: 1,
+        mfa_required: false,
+        session_timeout: 30,
+        ip_whitelist: [],
+        blocked_ips: [],
+        auto_suspend_debt_days: 30,
+        auto_hide_listings_on_debt: true,
+      };
+      const { error: insertError } = await supabaseAdmin
+        .from('security_settings')
+        .insert(defaultSettings);
+      if (insertError) console.error('Failed to insert default settings:', insertError);
       return defaultSettings;
     }
-    return defaultSettings;
-  }
 
-  return data;
+    return data;
+  } catch (err) {
+    console.error('getSecuritySettings fatal error:', err);
+    return {
+      id: 1,
+      mfa_required: false,
+      session_timeout: 30,
+      ip_whitelist: [],
+      blocked_ips: [],
+      auto_suspend_debt_days: 30,
+      auto_hide_listings_on_debt: true,
+    };
+  }
 }
 
 // ========== MUTATIONS ==========
@@ -115,13 +109,17 @@ export async function verifyUserLicense(userId: string) {
 }
 
 export async function markDebtPaid(userId: string, amount: number) {
-  await supabaseAdmin.from('payments').insert({
-    user_id: userId,
-    amount,
-    method: 'Manual',
-    description: 'Admin marked debt as paid',
-    recorded_by: 'admin'
-  });
+  try {
+    await supabaseAdmin.from('payments').insert({
+      user_id: userId,
+      amount,
+      method: 'Manual',
+      description: 'Admin marked debt as paid',
+      recorded_by: 'admin'
+    });
+  } catch (err) {
+    console.warn('Payments table missing or error:', err);
+  }
 
   const { data: user, error: fetchError } = await supabaseAdmin
     .from('users')
@@ -131,7 +129,6 @@ export async function markDebtPaid(userId: string, amount: number) {
   if (fetchError) throw new Error(fetchError.message);
 
   const newTotalPaid = (user?.total_paid || 0) + amount;
-
   const { error } = await supabaseAdmin
     .from('users')
     .update({
@@ -156,13 +153,11 @@ export async function updateSecuritySettings(settings: any) {
     auto_suspend_debt_days: settings.autoSuspendDebtDays,
     auto_hide_listings_on_debt: settings.autoHideListingsOnDebt,
   };
-  // Try to upsert; if table missing, log and return success (to avoid crashing)
   const { error } = await supabaseAdmin
     .from('security_settings')
     .upsert(dbSettings);
   if (error) {
     console.error('updateSecuritySettings error:', error);
-    // Don't throw – just return success to avoid breaking the dashboard
     return { success: true };
   }
   revalidatePath('/dashboard');
