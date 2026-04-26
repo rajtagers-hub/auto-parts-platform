@@ -3,42 +3,39 @@ import { revalidatePath } from 'next/cache';
 import { supabaseAdmin } from '@/lib/supabaseAdmin';
 
 // ========== FETCH ==========
-
 export async function getUsers() {
-  const { data, error } = await supabaseAdmin.from('users').select('*');
-  if (error) throw new Error(`getUsers failed: ${error.message}`);
-  return data;
+  try {
+    const { data, error } = await supabaseAdmin.from('users').select('*');
+    if (error) throw new Error(error.message);
+    return data || [];
+  } catch (err) {
+    console.error('getUsers error:', err);
+    return [];
+  }
 }
 
 export async function getParts() {
-  const { data, error } = await supabaseAdmin
-    .from('parts')
-    .select('*, users!seller_id(name)')
-    .order('created_at', { ascending: false });
-  if (error) throw new Error(`getParts failed: ${error.message}`);
-  return data;
+  try {
+    const { data, error } = await supabaseAdmin
+      .from('parts')
+      .select('*, users!seller_id(name)')
+      .order('created_at', { ascending: false });
+    if (error) throw new Error(error.message);
+    return data || [];
+  } catch (err) {
+    console.error('getParts error:', err);
+    return [];
+  }
 }
 
 export async function getSecuritySettings() {
   try {
-    const { data, error } = await supabaseAdmin
+    let { data, error } = await supabaseAdmin
       .from('security_settings')
       .select('*')
       .maybeSingle();
 
-    if (error) {
-      console.error('getSecuritySettings error:', error);
-      // Return defaults instead of crashing
-      return {
-        id: 1,
-        mfa_required: false,
-        session_timeout: 30,
-        ip_whitelist: [],
-        blocked_ips: [],
-        auto_suspend_debt_days: 30,
-        auto_hide_listings_on_debt: true,
-      };
-    }
+    if (error && error.code !== 'PGRST116') throw new Error(error.message);
 
     if (!data) {
       const defaultSettings = {
@@ -50,30 +47,37 @@ export async function getSecuritySettings() {
         auto_suspend_debt_days: 30,
         auto_hide_listings_on_debt: true,
       };
-      const { error: insertError } = await supabaseAdmin
-        .from('security_settings')
-        .insert(defaultSettings);
-      if (insertError) console.error('Failed to insert default settings:', insertError);
-      return defaultSettings;
+      // Insert default row
+      await supabaseAdmin.from('security_settings').insert(defaultSettings);
+      data = defaultSettings;
     }
 
-    return data;
+    // Convert snake_case to camelCase
+    return {
+      id: data.id,
+      mfaRequired: data.mfa_required,
+      sessionTimeout: data.session_timeout,
+      ipWhitelist: data.ip_whitelist || [],
+      blockedIPs: data.blocked_ips || [],
+      autoSuspendDebtDays: data.auto_suspend_debt_days,
+      autoHideListingsOnDebt: data.auto_hide_listings_on_debt,
+    };
   } catch (err) {
-    console.error('getSecuritySettings fatal error:', err);
+    console.error('getSecuritySettings error:', err);
+    // Fallback defaults (camelCase)
     return {
       id: 1,
-      mfa_required: false,
-      session_timeout: 30,
-      ip_whitelist: [],
-      blocked_ips: [],
-      auto_suspend_debt_days: 30,
-      auto_hide_listings_on_debt: true,
+      mfaRequired: false,
+      sessionTimeout: 30,
+      ipWhitelist: [],
+      blockedIPs: [],
+      autoSuspendDebtDays: 30,
+      autoHideListingsOnDebt: true,
     };
   }
 }
 
 // ========== MUTATIONS ==========
-
 export async function updateUserStatus(userId: string, newStatus: string) {
   try {
     const { data, error } = await supabaseAdmin
@@ -81,20 +85,13 @@ export async function updateUserStatus(userId: string, newStatus: string) {
       .update({ status: newStatus })
       .eq('id', userId)
       .select();
-
-    if (error) {
-      console.error('[updateUserStatus] DB error:', error);
-      throw new Error(error.message);
-    }
-    if (!data || data.length === 0) {
-      throw new Error('No user returned after update');
-    }
-
-    revalidatePath('/dashboard');
+    if (error) throw new Error(error.message);
+    if (!data || data.length === 0) throw new Error('No user returned after update');
+    revalidatePath('/admin');
     return { success: true, updatedUser: data[0] };
   } catch (err: any) {
-    console.error('[updateUserStatus] caught:', err);
-    throw new Error(err.message || 'Unknown error in updateUserStatus');
+    console.error('[updateUserStatus]', err);
+    throw new Error(err.message || 'Failed to update status');
   }
 }
 
@@ -104,7 +101,7 @@ export async function verifyUserLicense(userId: string) {
     .update({ license_verified: true })
     .eq('id', userId);
   if (error) throw new Error(error.message);
-  revalidatePath('/dashboard');
+  revalidatePath('/admin');
   return { success: true };
 }
 
@@ -118,16 +115,14 @@ export async function markDebtPaid(userId: string, amount: number) {
       recorded_by: 'admin'
     });
   } catch (err) {
-    console.warn('Payments table missing or error:', err);
+    console.warn('Payments insert failed (table may be missing):', err);
   }
-
   const { data: user, error: fetchError } = await supabaseAdmin
     .from('users')
     .select('total_paid')
     .eq('id', userId)
     .single();
   if (fetchError) throw new Error(fetchError.message);
-
   const newTotalPaid = (user?.total_paid || 0) + amount;
   const { error } = await supabaseAdmin
     .from('users')
@@ -138,8 +133,7 @@ export async function markDebtPaid(userId: string, amount: number) {
     })
     .eq('id', userId);
   if (error) throw new Error(error.message);
-
-  revalidatePath('/dashboard');
+  revalidatePath('/admin');
   return { success: true };
 }
 
@@ -160,7 +154,7 @@ export async function updateSecuritySettings(settings: any) {
     console.error('updateSecuritySettings error:', error);
     return { success: true };
   }
-  revalidatePath('/dashboard');
+  revalidatePath('/admin');
   return { success: true };
 }
 
@@ -170,6 +164,6 @@ export async function updatePartStatus(partId: string, status: string) {
     .update({ status })
     .eq('id', partId);
   if (error) throw new Error(error.message);
-  revalidatePath('/dashboard');
+  revalidatePath('/admin');
   return { success: true };
 }
