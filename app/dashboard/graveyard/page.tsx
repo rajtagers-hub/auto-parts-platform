@@ -7,7 +7,7 @@ import {
   ShieldCheck, User, FileDown, LogOut, CheckCircle2, PieChart, 
   AlertTriangle, Edit2, Save, TrendingUp, DollarSign, Eye, Trash2,
   Check, MessageCircle, Phone, MapPin, Calendar, BarChart3, Clock,
-  Award, FileText, Loader2, CreditCard, Key, AlertCircle, Building
+  Award, FileText, Loader2, CreditCard, Key, AlertCircle, Building, Menu
 } from 'lucide-react';
 import {
   LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip,
@@ -60,6 +60,7 @@ export default function GraveyardDashboard() {
   
   // Payment method placeholder
   const [showPaymentModal, setShowPaymentModal] = useState(false);
+  const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
 
   useEffect(() => {
     const getUser = async () => {
@@ -382,10 +383,29 @@ export default function GraveyardDashboard() {
 
   return (
     <div className="min-h-screen bg-[#050505] text-white flex flex-col font-sans">
-      <div className="flex flex-1">
-        {/* Sidebar */}
-        <aside className="w-80 bg-[#0A0A0A] border-r border-white/5 flex flex-col h-screen sticky top-0 z-50">
-          <div className="p-8 border-b border-white/5">
+      <div className="flex flex-1 flex-col lg:flex-row">
+        {/* Mobile Header */}
+        <div className="lg:hidden flex items-center justify-between p-4 bg-[#0A0A0A] border-b border-white/5 sticky top-0 z-50">
+          <div className="flex items-center gap-3">
+            <div className="w-10 h-10 bg-linear-to-br from-blue-600 to-blue-800 rounded-xl flex items-center justify-center text-lg font-black italic shadow-lg shadow-blue-600/20">
+              {sellerData.name?.charAt(0) || 'G'}
+            </div>
+            <h2 className="font-black uppercase italic text-xs tracking-tighter">{sellerData.name || 'GRAVEYARD'}</h2>
+          </div>
+          <button 
+            onClick={() => setIsMobileMenuOpen(!isMobileMenuOpen)}
+            className="p-2 hover:bg-white/5 rounded-lg transition-colors"
+          >
+            {isMobileMenuOpen ? <X size={24} /> : <Menu size={24} />}
+          </button>
+        </div>
+
+        {/* Sidebar - Desktop & Mobile */}
+        <aside className={`
+          fixed lg:sticky lg:top-0 left-0 bottom-0 w-80 bg-[#0A0A0A] border-r border-white/5 flex flex-col h-screen z-40 transition-transform duration-300
+          ${isMobileMenuOpen ? "translate-x-0" : "-translate-x-full lg:translate-x-0"}
+        `}>
+          <div className="p-8 border-b border-white/5 hidden lg:block">
             <div className="flex items-center gap-4">
               <div className="w-14 h-14 bg-linear-to-br from-blue-600 to-blue-800 rounded-2xl flex items-center justify-center text-2xl font-black italic shadow-lg shadow-blue-600/20">
                 {sellerData.name?.charAt(0) || 'G'}
@@ -396,24 +416,24 @@ export default function GraveyardDashboard() {
               </div>
             </div>
           </div>
-          <nav className="flex-1 p-6 space-y-2">
-            <button onClick={() => setView('home')} className={`w-full flex items-center gap-4 p-4 rounded-2xl text-[10px] font-black uppercase italic transition-all ${view === 'home' ? 'bg-blue-600 text-white shadow-lg' : 'text-zinc-500 hover:bg-white/5 hover:text-white'}`}>
+          <nav className="flex-1 p-6 space-y-2 overflow-y-auto">
+            <button onClick={() => { setView('home'); setIsMobileMenuOpen(false); }} className={`w-full flex items-center gap-4 p-4 rounded-2xl text-[10px] font-black uppercase italic transition-all ${view === 'home' ? 'bg-blue-600 text-white shadow-lg' : 'text-zinc-500 hover:bg-white/5 hover:text-white'}`}>
               <LayoutDashboard size={18}/> Paneli Kryesor
             </button>
-            <button onClick={() => setView('inventory')} className={`w-full flex items-center gap-4 p-4 rounded-2xl text-[10px] font-black uppercase italic transition-all ${view === 'inventory' ? 'bg-blue-600 text-white shadow-lg' : 'text-zinc-500 hover:bg-white/5 hover:text-white'}`}>
+            <button onClick={() => { setView('inventory'); setIsMobileMenuOpen(false); }} className={`w-full flex items-center gap-4 p-4 rounded-2xl text-[10px] font-black uppercase italic transition-all ${view === 'inventory' ? 'bg-blue-600 text-white shadow-lg' : 'text-zinc-500 hover:bg-white/5 hover:text-white'}`}>
               <Package size={18}/> Inventari Im
             </button>
-            <button onClick={() => setView('sales')} className={`w-full flex items-center gap-4 p-4 rounded-2xl text-[10px] font-black uppercase italic transition-all ${view === 'sales' ? 'bg-blue-600 text-white shadow-lg' : 'text-zinc-500 hover:bg-white/5 hover:text-white'}`}>
+            <button onClick={() => { setView('sales'); setIsMobileMenuOpen(false); }} className={`w-full flex items-center gap-4 p-4 rounded-2xl text-[10px] font-black uppercase italic transition-all ${view === 'sales' ? 'bg-blue-600 text-white shadow-lg' : 'text-zinc-500 hover:bg-white/5 hover:text-white'}`}>
               <History size={18}/> Regjistri Shitjeve
             </button>
-            <button onClick={() => setView('analytics')} className={`w-full flex items-center gap-4 p-4 rounded-2xl text-[10px] font-black uppercase italic transition-all ${view === 'analytics' ? 'bg-blue-600 text-white shadow-lg' : 'text-zinc-500 hover:bg-white/5 hover:text-white'}`}>
+            <button onClick={() => { setView('analytics'); setIsMobileMenuOpen(false); }} className={`w-full flex items-center gap-4 p-4 rounded-2xl text-[10px] font-black uppercase italic transition-all ${view === 'analytics' ? 'bg-blue-600 text-white shadow-lg' : 'text-zinc-500 hover:bg-white/5 hover:text-white'}`}>
               <BarChart3 size={18}/> Analitika
             </button>
             <div className="pt-8 mt-8 border-t border-white/5">
-              <button onClick={() => setView('profile')} className={`w-full flex items-center gap-4 p-4 rounded-2xl text-[10px] font-black uppercase italic transition-all ${view === 'profile' ? 'bg-blue-600 text-white shadow-lg' : 'text-zinc-500 hover:bg-white/5 hover:text-white'}`}>
+              <button onClick={() => { setView('profile'); setIsMobileMenuOpen(false); }} className={`w-full flex items-center gap-4 p-4 rounded-2xl text-[10px] font-black uppercase italic transition-all ${view === 'profile' ? 'bg-blue-600 text-white shadow-lg' : 'text-zinc-500 hover:bg-white/5 hover:text-white'}`}>
                 <Briefcase size={18}/> Profili
               </button>
-              <button onClick={() => setView('security')} className={`w-full flex items-center gap-4 p-4 rounded-2xl text-[10px] font-black uppercase italic transition-all ${view === 'security' ? 'bg-blue-600 text-white shadow-lg' : 'text-zinc-500 hover:bg-white/5 hover:text-white'}`}>
+              <button onClick={() => { setView('security'); setIsMobileMenuOpen(false); }} className={`w-full flex items-center gap-4 p-4 rounded-2xl text-[10px] font-black uppercase italic transition-all ${view === 'security' ? 'bg-blue-600 text-white shadow-lg' : 'text-zinc-500 hover:bg-white/5 hover:text-white'}`}>
                 <ShieldCheck size={18}/> Siguria
               </button>
             </div>
@@ -425,12 +445,20 @@ export default function GraveyardDashboard() {
           </div>
         </aside>
 
-        <main className="flex-1 overflow-y-auto">
-          <div className="p-10 pb-20">
+        {/* Mobile Overlay */}
+        {isMobileMenuOpen && (
+          <div 
+            className="fixed inset-0 bg-black/60 backdrop-blur-sm z-30 lg:hidden"
+            onClick={() => setIsMobileMenuOpen(false)}
+          />
+        )}
+
+        <main className="flex-1 overflow-x-hidden">
+          <div className="p-4 md:p-10 pb-20">
             {/* Home Tab */}
             {view === 'home' && (
               <div className="animate-in fade-in slide-in-from-bottom-4 duration-500">
-                <h1 className="text-6xl md:text-7xl font-black italic uppercase mb-8 tracking-tighter">PANELI <span className="text-blue-600">KRYESOR</span></h1>
+                <h1 className="text-4xl md:text-7xl font-black italic uppercase mb-8 tracking-tighter">PANELI <span className="text-blue-600">KRYESOR</span></h1>
                 {sellerData.current_debt > 0 && (
                   <div className="mb-8 p-6 bg-red-500/10 border border-red-500/20 rounded-3xl flex items-center gap-4 animate-pulse">
                     <AlertTriangle className="text-red-500" size={32} />
@@ -546,8 +574,8 @@ export default function GraveyardDashboard() {
                     <p className="text-zinc-500 font-black uppercase italic text-sm">Nuk keni asnjë shitje të regjistruar.</p>
                   </div>
                 ) : (
-                  <div className="bg-[#111111] border border-white/5 rounded-3xl overflow-hidden">
-                    <table className="w-full text-left font-black italic uppercase">
+                  <div className="bg-[#111111] border border-white/5 rounded-3xl overflow-x-auto">
+                    <table className="w-full text-left font-black italic uppercase min-w-[600px]">
                       <thead className="bg-white/5 text-[10px] text-zinc-500 tracking-wider">
                         <tr><th className="p-6">Produkti</th><th className="p-6 text-center">Data</th><th className="p-6 text-center">Komisioni (3%)</th><th className="p-6 text-center">Çmimi</th></tr>
                       </thead>

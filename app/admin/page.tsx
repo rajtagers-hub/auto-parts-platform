@@ -6,7 +6,7 @@ import {
   Users, Package, Shield, LayoutDashboard, LogOut,
   CheckCircle, XCircle, BadgeCheck, CreditCard, Trash2,
   ChevronDown, Search, RefreshCw, Pencil, Download, FileDown,
-  UserCircle, AlertTriangle
+  UserCircle, AlertTriangle, Menu, X
 } from "lucide-react";
 import EditUserModal from "./components/EditUserModal";
 import { downloadUserRevenueCSV, downloadSingleUserRevenueCSV } from "./components/RevenueDownload";
@@ -27,6 +27,7 @@ export default function AdminDashboard() {
   const [editingUser, setEditingUser] = useState<any | null>(null);
   const [deletionRequests, setDeletionRequests] = useState<any[]>([]);
   const [adminProfile, setAdminProfile] = useState<any>(null);
+  const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
 
   const showToast = (message: string, type: "success" | "error" = "success") => {
     setToast({ message, type });
@@ -227,17 +228,36 @@ export default function AdminDashboard() {
         </div>
       )}
 
-      {/* Sidebar */}
-      <div className="fixed left-0 top-0 bottom-0 w-64 bg-[#0A0A0A] border-r border-white/5 flex flex-col z-40">
-        <div className="p-6 border-b border-white/5">
+      {/* Mobile Header */}
+      <div className="lg:hidden flex items-center justify-between p-4 bg-[#0A0A0A] border-b border-white/5 sticky top-0 z-50">
+        <h1 className="text-lg font-black italic uppercase tracking-wider">Auto Forms</h1>
+        <button 
+          onClick={() => setIsMobileMenuOpen(!isMobileMenuOpen)}
+          className="p-2 hover:bg-white/5 rounded-lg transition-colors"
+        >
+          {isMobileMenuOpen ? <X className="w-6 h-6" /> : <Menu className="w-6 h-6" />}
+        </button>
+      </div>
+
+      {/* Sidebar - Desktop & Mobile */}
+      <div className={`
+        fixed left-0 top-0 bottom-0 w-64 bg-[#0A0A0A] border-r border-white/5 flex flex-col z-40 transition-transform duration-300
+        ${isMobileMenuOpen ? "translate-x-0" : "-translate-x-full lg:translate-x-0"}
+      `}>
+        <div className="p-6 border-b border-white/5 hidden lg:block">
           <h1 className="text-lg font-black italic uppercase tracking-wider">Auto Forms</h1>
           <p className="text-[10px] text-zinc-600 uppercase tracking-widest font-bold mt-1">Admin Panel</p>
         </div>
-        <nav className="flex-1 p-4 space-y-1">
+        <nav className="flex-1 p-4 space-y-1 overflow-y-auto">
           {tabs.map(tab => (
             <button
               key={tab.id}
-              onClick={() => { setActiveTab(tab.id); setSearchQuery(""); setStatusFilter("all"); }}
+              onClick={() => { 
+                setActiveTab(tab.id); 
+                setSearchQuery(""); 
+                setStatusFilter("all");
+                setIsMobileMenuOpen(false);
+              }}
               className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-bold uppercase tracking-wider transition-all ${
                 activeTab === tab.id
                   ? "bg-blue-600/10 text-blue-400 border border-blue-500/20"
@@ -257,19 +277,27 @@ export default function AdminDashboard() {
         </div>
       </div>
 
+      {/* Mobile Overlay */}
+      {isMobileMenuOpen && (
+        <div 
+          className="fixed inset-0 bg-black/60 backdrop-blur-sm z-30 lg:hidden"
+          onClick={() => setIsMobileMenuOpen(false)}
+        />
+      )}
+
       {/* Main Content */}
-      <div className="ml-64 p-8">
+      <div className="lg:ml-64 p-4 md:p-8">
         {/* Header */}
-        <div className="flex items-center justify-between mb-8">
+        <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-8">
           <div>
-            <h2 className="text-3xl font-black italic uppercase tracking-tight">
+            <h2 className="text-2xl md:text-3xl font-black italic uppercase tracking-tight">
               {tabs.find(t => t.id === activeTab)?.label}
             </h2>
-            <p className="text-zinc-600 text-xs uppercase tracking-widest font-bold mt-1">
+            <p className="text-zinc-600 text-[10px] uppercase tracking-widest font-bold mt-1">
               Paneli i administrimit
             </p>
           </div>
-          <button onClick={fetchData} className="flex items-center gap-2 px-4 py-2 rounded-xl bg-white/5 border border-white/10 text-zinc-400 hover:text-white hover:border-white/20 transition-all text-xs font-bold uppercase tracking-wider">
+          <button onClick={fetchData} className="w-fit flex items-center gap-2 px-4 py-2 rounded-xl bg-white/5 border border-white/10 text-zinc-400 hover:text-white hover:border-white/20 transition-all text-[10px] font-bold uppercase tracking-wider">
             <RefreshCw className="w-3 h-3" /> Rifresko
           </button>
         </div>
@@ -347,7 +375,7 @@ export default function AdminDashboard() {
         {activeTab === "users" && (
           <div className="space-y-6">
             {/* Search & Filters */}
-            <div className="flex gap-4">
+            <div className="flex flex-col md:flex-row gap-4">
               <div className="flex-1 relative">
                 <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-zinc-600" />
                 <input
@@ -358,37 +386,39 @@ export default function AdminDashboard() {
                   className="w-full bg-[#0A0A0A] border border-white/10 rounded-xl pl-12 pr-4 py-3 text-sm focus:border-blue-500/50 outline-none transition-colors"
                 />
               </div>
-              <div className="relative">
-                <select
-                  value={statusFilter}
-                  onChange={e => setStatusFilter(e.target.value)}
-                  className="bg-[#0A0A0A] border border-white/10 rounded-xl px-4 py-3 text-sm appearance-none pr-10 focus:border-blue-500/50 outline-none transition-colors"
-                >
-                  <option value="all">Të gjithë</option>
-                  <option value="Active">Aktiv</option>
-                  <option value="Suspended">Pezulluar</option>
-                </select>
-                <ChevronDown className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-zinc-600 pointer-events-none" />
-              </div>
-              <div className="flex gap-2">
-                <button
-                  onClick={() => downloadUserRevenueCSV(users, parts)}
-                  className="flex items-center gap-2 px-4 py-3 rounded-xl bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 hover:bg-emerald-500/20 transition-all text-xs font-bold uppercase tracking-wider whitespace-nowrap"
-                >
-                  <FileDown className="w-4 h-4" /> CSV
-                </button>
-                <button
-                  onClick={() => downloadAllUsersPDF(users, parts)}
-                  className="flex items-center gap-2 px-4 py-3 rounded-xl bg-blue-500/10 border border-blue-500/20 text-blue-400 hover:bg-blue-500/20 transition-all text-xs font-bold uppercase tracking-wider whitespace-nowrap"
-                >
-                  <FileDown className="w-4 h-4" /> PDF
-                </button>
+              <div className="flex gap-4">
+                <div className="relative flex-1 md:flex-none">
+                  <select
+                    value={statusFilter}
+                    onChange={e => setStatusFilter(e.target.value)}
+                    className="w-full bg-[#0A0A0A] border border-white/10 rounded-xl px-4 py-3 text-sm appearance-none pr-10 focus:border-blue-500/50 outline-none transition-colors"
+                  >
+                    <option value="all">Të gjithë</option>
+                    <option value="Active">Aktiv</option>
+                    <option value="Suspended">Pezulluar</option>
+                  </select>
+                  <ChevronDown className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-zinc-600 pointer-events-none" />
+                </div>
+                <div className="flex gap-2">
+                  <button
+                    onClick={() => downloadUserRevenueCSV(users, parts)}
+                    className="flex items-center gap-2 px-4 py-3 rounded-xl bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 hover:bg-emerald-500/20 transition-all text-xs font-bold uppercase tracking-wider whitespace-nowrap"
+                  >
+                    <FileDown className="w-4 h-4" /> CSV
+                  </button>
+                  <button
+                    onClick={() => downloadAllUsersPDF(users, parts)}
+                    className="flex items-center gap-2 px-4 py-3 rounded-xl bg-blue-500/10 border border-blue-500/20 text-blue-400 hover:bg-blue-500/20 transition-all text-xs font-bold uppercase tracking-wider whitespace-nowrap"
+                  >
+                    <FileDown className="w-4 h-4" /> PDF
+                  </button>
+                </div>
               </div>
             </div>
 
             {/* Users Table */}
-            <div className="bg-[#0A0A0A] border border-white/5 rounded-2xl overflow-hidden">
-              <table className="w-full">
+            <div className="bg-[#0A0A0A] border border-white/5 rounded-2xl overflow-x-auto">
+              <table className="w-full min-w-[800px]">
                 <thead>
                   <tr className="border-b border-white/5">
                     {["Emri", "Email", "Tipi", "Qyteti", "Statusi", "Borxhi", "Veprime"].map(h => (
