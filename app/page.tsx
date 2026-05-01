@@ -242,7 +242,7 @@ export default function LandingPage() {
                       <Phone size={12}/> Thirr
                     </a>
                     <a 
-                      href={`https://wa.me/${part.users?.whatsapp?.replace(/\D/g, '')}?text=${encodeURIComponent(`Përshëndetje! Jam i interesuar për pjesën: ${part.title} (${part.price}€). A është ende në gjendje?`)}`}
+                      href={`https://api.whatsapp.com/send?phone=${part.users?.whatsapp?.replace(/\D/g, '')}&text=${encodeURIComponent(`Përshëndetje! Jam i interesuar për pjesën: ${part.title} (${part.price}€). A është ende në gjendje?`)}`}
                       target="_blank" 
                       onClick={(e) => e.stopPropagation()}
                       className="flex items-center justify-center gap-2 bg-[#25D366] text-white py-3 rounded-2xl font-black uppercase text-[9px] hover:bg-green-600 transition-all"
@@ -334,7 +334,7 @@ export default function LandingPage() {
                     <Phone size={18} /> Thirr Shitësin
                   </a>
                   <a 
-                    href={`https://wa.me/${selectedPart.users?.whatsapp?.replace(/\D/g, '')}?text=${encodeURIComponent(`Përshëndetje! Jam i interesuar për pjesën: ${selectedPart.title} (${selectedPart.price}€). A është ende në gjendje?`)}`}
+                    href={`https://api.whatsapp.com/send?phone=${selectedPart.users?.whatsapp?.replace(/\D/g, '')}&text=${encodeURIComponent(`Përshëndetje! Jam i interesuar për pjesën: ${selectedPart.title} (${selectedPart.price}€). A është ende në gjendje?`)}`}
                     target="_blank"
                     className="flex items-center justify-center gap-3 bg-[#25D366] text-white py-5 rounded-2xl font-black uppercase italic text-[11px] tracking-wider hover:bg-green-600 transition-all shadow-xl"
                   >
