@@ -211,7 +211,7 @@ export default function IndividualDashboard() {
       }
     }
 
-    const { error } = await supabase.from('parts').insert({
+    const { error: dbError } = await supabase.from('parts').insert({
       seller_id: userId,
       title: newPart.title,
       price: parseFloat(newPart.price),
@@ -224,9 +224,9 @@ export default function IndividualDashboard() {
       views: 0
     });
 
-    if (error) {
-      console.error("Database error:", error);
-      alert("Gabim gjatë publikimit.");
+    if (dbError) {
+      console.error("Database error:", dbError);
+      alert(`Gabim gjatë publikimit: ${dbError.message}`);
     } else {
       await fetchParts(userId!);
       setShowUpload(false);
