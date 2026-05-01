@@ -30,6 +30,16 @@ interface Part {
   };
 }
 
+const formatWhatsAppNumber = (phone: string) => {
+  let cleaned = phone.replace(/\D/g, '');
+  if (cleaned.startsWith('0')) {
+    cleaned = '355' + cleaned.substring(1);
+  } else if (cleaned.length === 9 && (cleaned.startsWith('67') || cleaned.startsWith('68') || cleaned.startsWith('69'))) {
+    cleaned = '355' + cleaned;
+  }
+  return cleaned;
+};
+
 export default function SearchClient() {
   const router = useRouter();
   const searchParams = useSearchParams();
@@ -178,7 +188,7 @@ export default function SearchClient() {
                       <Phone size={12}/> Thirr
                     </a>
                     <a 
-                      href={`https://api.whatsapp.com/send?phone=${part.users?.whatsapp?.replace(/\D/g, '')}&text=${encodeURIComponent(`Përshëndetje! Jam i interesuar për pjesën: ${part.title} (${part.price}€). A është ende në gjendje?`)}`}
+                      href={`https://api.whatsapp.com/send?phone=${formatWhatsAppNumber(part.users?.whatsapp || '')}&text=${encodeURIComponent(`Përshëndetje! Jam i interesuar për pjesën: ${part.title} (${part.price}€). A është ende në gjendje?`)}`}
                       target="_blank" 
                       onClick={(e) => e.stopPropagation()}
                       className="flex items-center justify-center gap-2 bg-[#25D366] text-white py-3 rounded-2xl font-black uppercase text-[9px] hover:bg-green-600 transition-all"
@@ -270,7 +280,7 @@ export default function SearchClient() {
                     <Phone size={18} /> Thirr Shitësin
                   </a>
                   <a 
-                    href={`https://api.whatsapp.com/send?phone=${selectedPart.users?.whatsapp?.replace(/\D/g, '')}&text=${encodeURIComponent(`Përshëndetje! Jam i interesuar për pjesën: ${selectedPart.title} (${selectedPart.price}€). A është ende në gjendje?`)}`}
+                    href={`https://api.whatsapp.com/send?phone=${formatWhatsAppNumber(selectedPart.users?.whatsapp || '')}&text=${encodeURIComponent(`Përshëndetje! Jam i interesuar për pjesën: ${selectedPart.title} (${selectedPart.price}€). A është ende në gjendje?`)}`}
                     target="_blank"
                     className="flex items-center justify-center gap-3 bg-[#25D366] text-white py-5 rounded-2xl font-black uppercase italic text-[11px] tracking-wider hover:bg-green-600 transition-all shadow-xl"
                   >
