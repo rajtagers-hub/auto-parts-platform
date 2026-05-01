@@ -233,8 +233,25 @@ export default function LandingPage() {
                 <div className="p-6">
                   <h3 className="text-xl font-black italic uppercase tracking-tight">{part.title}</h3>
                   <p className="text-xs text-zinc-500 mt-1">{part.model} • {part.year}</p>
-                  <div className="flex items-center gap-2 mt-4 text-[10px] text-zinc-400">
-                    <MapPin size={12} /> {part.users?.city || 'Shqipëri'}
+                  <div className="grid grid-cols-2 gap-2 mt-6">
+                    <a 
+                      href={`tel:${part.users?.phone}`} 
+                      onClick={(e) => e.stopPropagation()}
+                      className="flex items-center justify-center gap-2 bg-white text-black py-3 rounded-2xl font-black uppercase text-[9px] hover:bg-blue-600 hover:text-white transition-all"
+                    >
+                      <Phone size={12}/> Thirr
+                    </a>
+                    <a 
+                      href={`https://wa.me/${part.users?.whatsapp?.replace(/\D/g, '')}?text=${encodeURIComponent(`Përshëndetje! Jam i interesuar për pjesën: ${part.title} (${part.price}€). A është ende në gjendje?`)}`}
+                      target="_blank" 
+                      onClick={(e) => e.stopPropagation()}
+                      className="flex items-center justify-center gap-2 bg-[#25D366] text-white py-3 rounded-2xl font-black uppercase text-[9px] hover:bg-green-600 transition-all"
+                    >
+                      <MessageCircle size={12}/> WhatsApp
+                    </a>
+                  </div>
+                  <div className="mt-4 flex items-center justify-center">
+                    <div className="text-[8px] font-black uppercase text-zinc-500 italic tracking-widest group-hover:text-blue-600 transition-colors">Shtyp për detaje</div>
                   </div>
                 </div>
               </div>
