@@ -6,7 +6,7 @@ import { supabase } from '@/lib/supabaseClient';
 import { 
   ShieldCheck, ChevronRight, User, Globe, X, Scale, FileText, Mail, Phone,
   Sparkles, TrendingUp, Star, Zap, ArrowRight, Menu, Car, Search as SearchIcon,
-  Package, MapPin
+  Package, MapPin, MessageCircle
 } from 'lucide-react';
 
 const carBrands = [
@@ -24,9 +24,13 @@ interface Part {
   year: number;
   image_url: string;
   created_at: string;
+  description?: string;
   users?: {
     name?: string;
     city?: string;
+    phone?: string;
+    whatsapp?: string;
+    email?: string;
   };
 }
 
@@ -38,12 +42,13 @@ export default function LandingPage() {
   const [partType, setPartType] = useState('');
   const [featuredParts, setFeaturedParts] = useState<Part[]>([]);
   const [loadingFeatured, setLoadingFeatured] = useState(true);
+  const [selectedPart, setSelectedPart] = useState<Part | null>(null);
 
   useEffect(() => {
     const fetchFeaturedParts = async () => {
       const { data } = await supabase
         .from('parts')
-        .select('*, users!seller_id(name, city)')
+        .select('*, users!seller_id(name, city, phone, whatsapp, email)')
         .eq('status', 'Active')
         .order('created_at', { ascending: false })
         .limit(6);
@@ -208,7 +213,11 @@ export default function LandingPage() {
         ) : (
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-8">
             {featuredParts.map((part) => (
-              <div key={part.id} className="group bg-zinc-900/40 border border-white/5 rounded-3xl overflow-hidden hover:border-blue-600/30 transition-all hover:scale-[1.02] duration-300">
+              <div 
+                key={part.id} 
+                onClick={() => setSelectedPart(part)}
+                className="group bg-zinc-900/40 border border-white/5 rounded-3xl overflow-hidden hover:border-blue-600/30 transition-all hover:scale-[1.02] duration-300 cursor-pointer"
+              >
                 <div className="aspect-square bg-zinc-800 relative overflow-hidden">
                   {part.image_url ? (
                     <img src={part.image_url} className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-500" alt={part.title} />
@@ -233,6 +242,99 @@ export default function LandingPage() {
           </div>
         )}
       </section>
+
+      {/* Part Detail Modal */}
+      {selectedPart && (
+        <div className="fixed inset-0 z-100 flex items-center justify-center p-4 md:p-10 backdrop-blur-xl bg-black/80 animate-in fade-in duration-300">
+          <div className="bg-[#0A0A0A] border border-white/10 w-full max-w-5xl rounded-[2.5rem] overflow-hidden relative max-h-[90vh] flex flex-col md:flex-row shadow-2xl">
+            <button 
+              onClick={() => setSelectedPart(null)}
+              className="absolute top-6 right-6 z-10 p-3 bg-black/50 hover:bg-black rounded-full text-white backdrop-blur-md transition-all"
+            >
+              <X size={24} />
+            </button>
+
+            {/* Image Area */}
+            <div className="md:w-1/2 bg-zinc-900 relative min-h-[300px]">
+              {selectedPart.image_url ? (
+                <img src={selectedPart.image_url} className="w-full h-full object-cover" alt={selectedPart.title} />
+              ) : (
+                <div className="w-full h-full flex items-center justify-center text-zinc-800"><Package size={80} /></div>
+              )}
+              <div className="absolute bottom-6 left-6 bg-blue-600 text-white px-8 py-4 rounded-3xl font-black italic text-4xl shadow-2xl shadow-blue-600/40">
+                {selectedPart.price}€
+              </div>
+            </div>
+
+            {/* Info Area */}
+            <div className="md:w-1/2 p-8 md:p-12 overflow-y-auto flex flex-col">
+              <div className="flex-1">
+                <div className="inline-flex items-center gap-2 px-3 py-1 bg-blue-600/10 border border-blue-500/20 text-blue-400 text-[10px] font-black uppercase italic tracking-widest rounded-full mb-6">
+                  ID: {selectedPart.id.substring(0, 8)}
+                </div>
+                <h2 className="text-4xl md:text-5xl font-black italic uppercase leading-none tracking-tighter mb-4">
+                  {selectedPart.title}
+                </h2>
+                <div className="flex flex-wrap gap-4 mb-8">
+                  <div className="px-4 py-2 bg-white/5 rounded-xl text-xs font-black uppercase italic text-zinc-400">
+                    Modeli: <span className="text-white">{selectedPart.model}</span>
+                  </div>
+                  <div className="px-4 py-2 bg-white/5 rounded-xl text-xs font-black uppercase italic text-zinc-400">
+                    Viti: <span className="text-white">{selectedPart.year}</span>
+                  </div>
+                  <div className="px-4 py-2 bg-white/5 rounded-xl text-xs font-black uppercase italic text-zinc-400">
+                    Qyteti: <span className="text-white">{selectedPart.users?.city}</span>
+                  </div>
+                </div>
+
+                <div className="space-y-4 mb-10">
+                  <h4 className="text-[10px] font-black uppercase tracking-[0.3em] text-zinc-500">Përshkrimi i Pjesës</h4>
+                  <p className="text-zinc-400 leading-relaxed italic text-sm md:text-base">
+                    {selectedPart.description || "Nuk ka përshkrim shtesë për këtë pjesë."}
+                  </p>
+                </div>
+
+                <div className="p-6 bg-white/5 rounded-3xl mb-10 border border-white/5">
+                  <div className="flex items-center gap-4">
+                    <div className="w-14 h-14 rounded-2xl bg-blue-600 flex items-center justify-center text-2xl font-black shadow-lg">
+                      {selectedPart.users?.name?.charAt(0)}
+                    </div>
+                    <div>
+                      <p className="text-[10px] font-black uppercase text-zinc-500 tracking-widest">Shitësi i Autorizuar</p>
+                      <h4 className="text-xl font-black italic uppercase">{selectedPart.users?.name}</h4>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              {/* Action Grid */}
+              <div className="grid grid-cols-1 gap-4">
+                <div className="grid grid-cols-2 gap-4">
+                  <a 
+                    href={`tel:${selectedPart.users?.phone}`}
+                    className="flex items-center justify-center gap-3 bg-white text-black py-5 rounded-2xl font-black uppercase italic text-[11px] tracking-wider hover:bg-blue-600 hover:text-white transition-all shadow-xl"
+                  >
+                    <Phone size={18} /> Thirr Shitësin
+                  </a>
+                  <a 
+                    href={`https://wa.me/${selectedPart.users?.whatsapp?.replace(/\D/g, '')}?text=${encodeURIComponent(`Përshëndetje! Jam i interesuar për pjesën: ${selectedPart.title} (${selectedPart.price}€). A është ende në gjendje?`)}`}
+                    target="_blank"
+                    className="flex items-center justify-center gap-3 bg-[#25D366] text-white py-5 rounded-2xl font-black uppercase italic text-[11px] tracking-wider hover:bg-green-600 transition-all shadow-xl"
+                  >
+                    <MessageCircle size={18} /> WhatsApp
+                  </a>
+                </div>
+                <a 
+                  href={`mailto:${selectedPart.users?.email || 'info@autoforms.al'}?subject=${encodeURIComponent(`Porosi Pjesë: ${selectedPart.title}`)}&body=${encodeURIComponent(`Përshëndetje ${selectedPart.users?.name},\n\nJam i interesuar për të blerë pjesën "${selectedPart.title}" të cilën e keni postuar në Auto Forms.\n\nModeli: ${selectedPart.model}\nÇmimi: ${selectedPart.price}€\n\nJu lutem më kontaktoni për hapat e mëtejshëm.`)}`}
+                  className="flex items-center justify-center gap-3 bg-zinc-800 text-white py-5 rounded-2xl font-black uppercase italic text-[11px] tracking-wider hover:bg-zinc-700 transition-all"
+                >
+                  <Mail size={18} /> Porosit përmes Email
+                </a>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Stats Section */}
       <section className="px-6 py-20 bg-linear-to-b from-black to-zinc-950 border-y border-white/5">
