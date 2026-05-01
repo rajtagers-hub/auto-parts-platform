@@ -158,11 +158,15 @@ export default function SearchClient() {
                 <div className="p-6">
                   <h3 className="text-xl font-black italic uppercase line-clamp-2">{part.title}</h3>
                   <p className="text-[10px] text-blue-500 font-black mt-1">{part.model} • {part.year}</p>
-                  <div className="flex items-center gap-3 mt-6 p-4 bg-zinc-900/30 rounded-2xl">
-                    <div className="w-10 h-10 rounded-xl bg-blue-600 flex items-center justify-center text-white font-black shadow-lg">{part.users?.name?.charAt(0)}</div>
+                  <div className="flex items-center gap-3 mt-6 p-4 bg-white/5 rounded-2xl border border-white/5">
+                    <div className="w-10 h-10 rounded-xl bg-blue-600 flex items-center justify-center text-white font-black shadow-lg">
+                      {part.users?.name?.charAt(0)}
+                    </div>
                     <div className="flex-1">
-                      <p className="text-xs font-black uppercase">{part.users?.name}</p>
-                      <div className="flex items-center gap-1 text-[9px] text-zinc-500"><MapPin size={10}/> {part.users?.city}</div>
+                      <p className="text-[10px] font-black uppercase text-white">{part.users?.name || 'Shitës i Verifikuar'}</p>
+                      <div className="flex items-center gap-1 text-[9px] text-zinc-500">
+                        <MapPin size={10}/> {part.users?.city || 'Shqipëri'}
+                      </div>
                     </div>
                   </div>
                   <div className="grid grid-cols-2 gap-2 mt-6">
