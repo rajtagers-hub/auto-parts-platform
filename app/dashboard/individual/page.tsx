@@ -324,25 +324,23 @@ export default function IndividualDashboard() {
     setChangingPassword(false);
   };
 
-  // Account deletion via API route
+  // Account deletion via request
   const handleDeleteAccount = async () => {
     if (deleteConfirmText !== 'FSHIJE') {
-      alert("Shkruani 'FSHIJE' për të konfirmuar fshirjen.");
+      alert("Shkruani 'FSHIJE' për të konfirmuar kërkesën.");
       return;
     }
     setDeletingAccount(true);
     try {
-      const res = await fetch('/api/user/delete', { method: 'DELETE' });
+      const res = await fetch('/api/admin/deletion-requests', { method: 'POST' });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error);
-      await supabase.auth.signOut();
-      router.push('/');
+      alert("Kërkesa për fshirje u dërgua me sukses. Administratori do ta konfirmojë së shpejti.");
+      setShowDeleteModal(false);
     } catch (err: any) {
-      console.error(err);
-      alert("Gabim gjatë fshirjes së llogarisë. Kontaktoni mbështetjen.");
+      alert(err.message || "Gabim gjatë dërgimit të kërkesës.");
     } finally {
       setDeletingAccount(false);
-      setShowDeleteModal(false);
     }
   };
 
@@ -669,10 +667,10 @@ export default function IndividualDashboard() {
                     </button>
                   </div>
                   <div className="border-t border-white/5 pt-6">
-                    <h3 className="text-lg font-black italic mb-2 text-red-500">Fshirja e Llogarisë</h3>
-                    <p className="text-xs text-zinc-500 mb-4">Ky veprim është i pakthyeshëm. Të gjitha të dhënat tuaja do të fshihen përgjithmonë.</p>
+                    <h3 className="text-lg font-black italic mb-2 text-red-500">Kërkesë për Fshirje</h3>
+                    <p className="text-xs text-zinc-500 mb-4">Ky veprim do të dërgojë një kërkesë te administratori për fshirjen e llogarisë tuaj.</p>
                     <button onClick={() => setShowDeleteModal(true)} className="bg-red-600/20 hover:bg-red-600 text-red-500 hover:text-white px-6 py-3 rounded-xl font-black uppercase text-sm transition-all flex items-center gap-2">
-                      <Trash2 size={16}/> Fshi Llogarinë
+                      <Trash2 size={16}/> Dërgo Kërkesën
                     </button>
                   </div>
                   <div className="border-t border-white/5 pt-6">
@@ -724,15 +722,15 @@ export default function IndividualDashboard() {
         <div className="fixed inset-0 z-200 bg-black/70 flex items-center justify-center p-6 backdrop-blur-xl">
           <div className="bg-[#0A0A0A] border border-red-500/20 rounded-2xl p-6 max-w-md w-full">
             <div className="flex justify-between items-center mb-4">
-              <h3 className="text-xl font-black uppercase text-red-500">Fshi Llogarinë</h3>
-              <button onClick={() => { setShowDeleteModal(false); setDeleteConfirmText(''); }}><X size={20} /></button>
-            </div>
-            <p className="text-sm text-zinc-400 mb-4">Ky veprim është i pakthyeshëm. Të gjitha pjesët, shitjet dhe të dhënat tuaja do të fshihen përgjithmonë.</p>
-            <p className="text-xs text-zinc-500 mb-2">Shkruani <span className="font-bold text-red-500">FSHIJE</span> për të konfirmuar:</p>
-            <input type="text" value={deleteConfirmText} onChange={e => setDeleteConfirmText(e.target.value)} placeholder="FSHIJE" className="w-full bg-white/5 border border-white/10 rounded-xl p-3 text-white mb-4" />
-            <button onClick={handleDeleteAccount} disabled={deletingAccount} className="w-full bg-red-600 py-3 rounded-xl font-black uppercase text-sm disabled:opacity-50">
-              {deletingAccount ? 'Duke fshirë...' : 'Konfirmo Fshirjen'}
-            </button>
+            <h3 className="text-xl font-black uppercase text-red-500">Dërgo Kërkesë Fshirjeje</h3>
+            <button onClick={() => { setShowDeleteModal(false); setDeleteConfirmText(''); }}><X size={20} /></button>
+          </div>
+          <p className="text-sm text-zinc-400 mb-4">Duke dërguar këtë kërkesë, ju njoftoni administratorin se dëshironi të fshini llogarinë tuaj përgjithmonë.</p>
+          <p className="text-xs text-zinc-500 mb-2">Shkruani <span className="font-bold text-red-500">FSHIJE</span> për të konfirmuar:</p>
+          <input type="text" value={deleteConfirmText} onChange={e => setDeleteConfirmText(e.target.value)} placeholder="FSHIJE" className="w-full bg-white/5 border border-white/10 rounded-xl p-3 text-white mb-4" />
+          <button onClick={handleDeleteAccount} disabled={deletingAccount} className="w-full bg-red-600 py-3 rounded-xl font-black uppercase text-sm disabled:opacity-50">
+            {deletingAccount ? 'Duke dërguar...' : 'Dërgo Kërkesën'}
+          </button>
           </div>
         </div>
       )}

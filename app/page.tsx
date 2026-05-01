@@ -16,13 +16,27 @@ const carBrands = [
   "RENAULT", "SEAT", "SKODA", "SMART", "SUBARU", "SUZUKI", "TOYOTA", "VOLVO", "VW"
 ];
 
+interface Part {
+  id: string;
+  title: string;
+  price: number;
+  model: string;
+  year: number;
+  image_url: string;
+  created_at: string;
+  users?: {
+    name?: string;
+    city?: string;
+  };
+}
+
 export default function LandingPage() {
   const router = useRouter();
   const [isSearchOpen, setIsSearchOpen] = useState(false);
   const [brand, setBrand] = useState('');
   const [model, setModel] = useState('');
   const [partType, setPartType] = useState('');
-  const [featuredParts, setFeaturedParts] = useState<any[]>([]);
+  const [featuredParts, setFeaturedParts] = useState<Part[]>([]);
   const [loadingFeatured, setLoadingFeatured] = useState(true);
 
   useEffect(() => {
@@ -261,7 +275,7 @@ export default function LandingPage() {
               <h4 className="text-[10px] font-black uppercase tracking-[0.3em] text-white">Kontakt</h4>
               <ul className="space-y-4 text-[11px] font-bold uppercase tracking-widest text-zinc-500">
                 <li><a href="https://wa.me/355600000000" target="_blank" className="flex items-center gap-3 hover:text-green-500 transition-colors"><Phone className="w-4 h-4" /> +355 6X XXX XXXX</a></li>
-                <li><a href="mailto:info@enklan.al" className="flex items-center gap-3 hover:text-blue-500 transition-colors lowercase"><Mail className="w-4 h-4" /> info@enklan.al</a></li>
+                <li><a href="mailto:info@autoforms.al" className="flex items-center gap-3 hover:text-blue-500 transition-colors lowercase"><Mail className="w-4 h-4" /> info@autoforms.al</a></li>
               </ul>
             </div>
           </div>

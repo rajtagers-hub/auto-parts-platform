@@ -12,6 +12,22 @@ const ALBANIAN_CITIES = [
   "Lushnjë", "Pogradec", "Kavajë", "Gjirokastër", "Sarandë", "Kukës", "Lezhë"
 ];
 
+interface Part {
+  id: string;
+  title: string;
+  price: number;
+  model: string;
+  year: number;
+  image_url: string;
+  created_at: string;
+  users?: {
+    name?: string;
+    city?: string;
+    phone?: string;
+    whatsapp?: string;
+  };
+}
+
 export default function SearchClient() {
   const router = useRouter();
   const searchParams = useSearchParams();
@@ -19,7 +35,7 @@ export default function SearchClient() {
   const initialModel = searchParams.get('model') || '';
   const initialPartType = searchParams.get('partType') || '';
 
-  const [parts, setParts] = useState<any[]>([]);
+  const [parts, setParts] = useState<Part[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
   const [showFilters, setShowFilters] = useState(false);
@@ -47,7 +63,7 @@ export default function SearchClient() {
   }, [initialBrand, initialModel, initialPartType]);
 
   const filteredParts = useMemo(() => {
-    let filtered = parts.filter(part => {
+    const filtered = parts.filter(part => {
       const matchesSearch = part.title.toLowerCase().includes(searchTerm.toLowerCase()) ||
                            part.model?.toLowerCase().includes(searchTerm.toLowerCase()) ||
                            part.users?.name?.toLowerCase().includes(searchTerm.toLowerCase());
@@ -97,7 +113,7 @@ export default function SearchClient() {
             <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-zinc-600" size={16}/>
             <input placeholder="Kërko në rezultate..." value={searchTerm} onChange={e=>setSearchTerm(e.target.value)} className="w-full bg-white/5 border border-white/10 rounded-xl py-3 pl-12 pr-4 text-sm text-white"/>
           </div>
-          <select value={sortBy} onChange={e=>setSortBy(e.target.value as any)} className="bg-white/5 border border-white/10 rounded-xl px-4 py-3 text-sm text-white">
+          <select value={sortBy} onChange={e=>setSortBy(e.target.value as 'newest' | 'price_asc' | 'price_desc')} className="bg-white/5 border border-white/10 rounded-xl px-4 py-3 text-sm text-white">
             <option value="newest">Më të rejat</option>
             <option value="price_asc">Çmimi: Nga më i ulëti</option>
             <option value="price_desc">Çmimi: Nga më i larti</option>

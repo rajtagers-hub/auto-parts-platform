@@ -30,10 +30,12 @@ export async function getParts() {
 
 export async function getSecuritySettings() {
   try {
-    let { data, error } = await supabaseAdmin
+    const result = await supabaseAdmin
       .from('security_settings')
       .select('*')
       .maybeSingle();
+    let data = result.data;
+    const error = result.error;
 
     if (error && error.code !== 'PGRST116') throw new Error(error.message);
 

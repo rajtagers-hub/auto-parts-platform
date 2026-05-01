@@ -6,7 +6,12 @@ export const metadata = {
 };
 
 import SearchClient from './SearchClient';
+import { Suspense } from 'react';
 
 export default function SearchPage() {
-  return <SearchClient />;
+  return (
+    <Suspense fallback={<div className="min-h-screen bg-black flex items-center justify-center text-blue-500">Duke ngarkuar...</div>}>
+      <SearchClient />
+    </Suspense>
+  );
 }

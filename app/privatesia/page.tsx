@@ -39,7 +39,7 @@ export default function Privatesia() {
           </div>
         </div>
         <footer className="mt-20 pt-8 border-t border-white/5 text-[9px] font-black tracking-[0.3em] text-zinc-700 uppercase">
-          <p>Auto Forms © 2026 – Të gjitha të drejtat e rezervuara</p>
+          <p>Enklan Sh.p.k © 2026 – Të gjitha të drejtat e rezervuara</p>
           <p className="mt-2">Powered by Enklan Sh.p.k</p>
         </footer>
       </div>

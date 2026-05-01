@@ -26,11 +26,6 @@ export default function Signup() {
   const [turnstileToken, setTurnstileToken] = useState<string | null>(null);
   const [turnstileError, setTurnstileError] = useState(false);
 
-  // Reset turnstile token when component mounts (to avoid expired token)
-  useEffect(() => {
-    setTurnstileToken(null);
-    setTurnstileError(false);
-  }, []);
 
   const handleSignup = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -65,7 +60,15 @@ export default function Signup() {
     const { error: authError } = await supabase.auth.signUp({
       email: form.email,
       password: form.password,
-      options: { data: { name: form.name } },
+      options: { 
+        data: { 
+          name: form.name,
+          user_type: form.userType,
+          phone: form.phone,
+          city: form.city,
+          nipt: form.nipt
+        } 
+      },
     });
     if (authError) {
       setError(authError.message);
@@ -156,7 +159,7 @@ export default function Signup() {
             setError("CAPTCHA error. Refresh the page and try again.");
           }}
           onExpire={() => setTurnstileToken(null)}
-          options={{ appearance: "interaction-only" }} // forces visible checkbox (optional)
+          options={{ theme: "dark" }}
           className="mb-4"
         />
 
