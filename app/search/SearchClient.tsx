@@ -4,7 +4,7 @@ import { supabase } from '@/lib/supabaseClient';
 import { useSearchParams, useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { 
-  Search, MapPin, Phone, MessageCircle, Package, Filter, X, ArrowLeft
+  Search, MapPin, Phone, MessageCircle, Package, Filter, X, ArrowLeft, Mail
 } from 'lucide-react';
 
 const ALBANIAN_CITIES = [
@@ -20,11 +20,13 @@ interface Part {
   year: number;
   image_url: string;
   created_at: string;
+  description?: string;
   users?: {
     name?: string;
     city?: string;
     phone?: string;
     whatsapp?: string;
+    email?: string;
   };
 }
 
@@ -48,7 +50,7 @@ export default function SearchClient() {
       setLoading(true);
       let query = supabase
         .from('parts')
-        .select('*, users!seller_id(name, city, phone, whatsapp)')
+        .select('*, users!seller_id(name, city, phone, whatsapp, email)')
         .eq('status', 'Active');
 
       if (initialBrand) query = query.ilike('category', `%${initialBrand}%`);
