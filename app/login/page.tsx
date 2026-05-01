@@ -2,6 +2,7 @@
 import { useState } from 'react';
 import { supabase } from '@/lib/supabaseClient';
 import { useRouter } from 'next/navigation';
+import { ChevronLeft } from 'lucide-react';
 
 export default function LoginPage() {
   const router = useRouter();
@@ -25,8 +26,15 @@ export default function LoginPage() {
   };
 
   return (
-    <div className="min-h-screen bg-black flex items-center justify-center p-6">
-      <form onSubmit={handleLogin} className="bg-[#0A0A0A] p-10 rounded-3xl border border-white/10 w-full max-w-md">
+    <div className="min-h-screen bg-black flex items-center justify-center p-4 md:p-6">
+      <div className="w-full max-w-md">
+        <button 
+          onClick={() => router.push('/')}
+          className="mb-6 flex items-center gap-2 text-zinc-500 hover:text-white transition-colors text-xs font-black uppercase tracking-widest"
+        >
+          <ChevronLeft size={16} /> Kthehu
+        </button>
+        <form onSubmit={handleLogin} className="bg-[#0A0A0A] p-6 md:p-10 rounded-3xl border border-white/10 w-full shadow-2xl">
         <h1 className="text-3xl font-black italic text-white mb-8">Hyr</h1>
         <input
           type="email"
@@ -61,6 +69,7 @@ export default function LoginPage() {
           Nuk ke llogari? <a href="/signup" className="text-blue-500 hover:underline">Regjistrohu</a>
         </p>
       </form>
+      </div>
     </div>
   );
 }

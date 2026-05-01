@@ -2,6 +2,7 @@
 import { useState, useEffect } from "react";
 import { supabase } from "@/lib/supabaseClient";
 import { useRouter } from "next/navigation";
+import { ChevronLeft } from "lucide-react";
 import dynamic from "next/dynamic";
 
 // Dynamically import Turnstile to avoid SSR issues
@@ -80,9 +81,16 @@ export default function Signup() {
   };
 
   return (
-    <div className="min-h-screen bg-black flex items-center justify-center p-6">
-      <form onSubmit={handleSignup} className="bg-[#0A0A0A] p-10 rounded-3xl border border-white/10 w-full max-w-md">
-        <h1 className="text-3xl font-black italic mb-8">Regjistrohu</h1>
+    <div className="min-h-screen bg-black flex items-center justify-center p-4 md:p-6 py-12">
+      <div className="w-full max-w-md">
+        <button 
+          onClick={() => router.push('/')}
+          className="mb-6 flex items-center gap-2 text-zinc-500 hover:text-white transition-colors text-xs font-black uppercase tracking-widest"
+        >
+          <ChevronLeft size={16} /> Kthehu
+        </button>
+        <form onSubmit={handleSignup} className="bg-[#0A0A0A] p-6 md:p-10 rounded-3xl border border-white/10 w-full shadow-2xl">
+          <h1 className="text-3xl font-black italic mb-8">Regjistrohu</h1>
 
         <input
           type="text"
@@ -175,6 +183,7 @@ export default function Signup() {
           Ke llogari? <a href="/login" className="text-blue-500">Kyçu</a>
         </p>
       </form>
+      </div>
     </div>
   );
 }
