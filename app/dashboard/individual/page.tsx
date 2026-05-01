@@ -211,18 +211,23 @@ export default function IndividualDashboard() {
       }
     }
 
-    const { error: dbError } = await supabase.from('parts').insert({
+    const insertData: any = {
       seller_id: userId,
       title: newPart.title,
       price: parseFloat(newPart.price),
       model: newPart.model,
       year: newPart.year,
       category: newPart.category,
-      description: newPart.description,
       image_url: imageUrl,
       status: 'Active',
       views: 0
-    });
+    };
+
+    if (newPart.description) {
+      insertData.description = newPart.description;
+    }
+
+    const { error: dbError } = await supabase.from('parts').insert(insertData);
 
     if (dbError) {
       console.error("Database error:", dbError);
