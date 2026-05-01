@@ -187,6 +187,30 @@ export default function IndividualDashboard() {
     }
     const confirmPost = window.confirm(`A jeni i sigurt që dëshironi të publikoni këtë pjesë?\n\nEmri: ${newPart.title}\nÇmimi: ${newPart.price}€`);
     if (!confirmPost) return;
+
+    let imageUrl = null;
+    if (previewUrl) {
+      try {
+        const response = await fetch(previewUrl);
+        const blob = await response.blob();
+        const fileName = `${userId}_${Date.now()}.jpg`;
+        const { error: uploadError } = await supabase.storage
+          .from('parts')
+          .upload(fileName, blob);
+        
+        if (uploadError) {
+          console.error("Storage error:", uploadError);
+          alert("Gabim gjatë ngarkimit të fotos.");
+          return;
+        }
+        imageUrl = supabase.storage.from('parts').getPublicUrl(fileName).data.publicUrl;
+      } catch (err) {
+        console.error("Image processing error:", err);
+        alert("Gabim gjatë procesimit të fotos.");
+        return;
+      }
+    }
+
     const { error } = await supabase.from('parts').insert({
       seller_id: userId,
       title: newPart.title,
@@ -195,11 +219,13 @@ export default function IndividualDashboard() {
       year: newPart.year,
       category: newPart.category,
       description: newPart.description,
-      image_url: previewUrl,
+      image_url: imageUrl,
       status: 'Active',
       views: 0
     });
+
     if (error) {
+      console.error("Database error:", error);
       alert("Gabim gjatë publikimit.");
     } else {
       await fetchParts(userId!);
