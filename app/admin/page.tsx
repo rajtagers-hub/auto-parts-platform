@@ -949,6 +949,8 @@ function SecurityPanel({ showToast }: { showToast: (msg: string, type?: "success
       </button>
     </div>
   );
+}
+
 function ProfilePanel({ profile, showToast, setProfile }: { profile: any, showToast: any, setProfile: any }) {
   const [form, setForm] = useState({
     name: profile.name || "",

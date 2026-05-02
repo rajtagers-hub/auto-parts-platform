@@ -478,26 +478,39 @@ export default function SearchClient() {
                       {selectedPart.users?.name?.[0].toUpperCase()}
                     </div>
                     <div>
+                      <p className="text-[8px] md:text-[10px] font-black uppercase tracking-widest text-blue-500">Shitësi i Autorizuar</p>
+                      <p className="text-lg md:text-xl font-black uppercase italic text-white">{selectedPart.users?.name}</p>
+                    </div>
+                  </div>
+                  <p className="text-[10px] md:text-xs text-zinc-500 leading-relaxed mb-6">
+                    Ky biznes është i verifikuar nga platforma VEKTRA. Çdo transaksion monitorohet për sigurinë tuaj.
+                  </p>
+                  
+                  <div className="grid grid-cols-2 gap-3">
+                    <button 
+                      onClick={() => {
+                        window.location.href = `tel:${selectedPart.users?.phone}`;
+                        handleLead(selectedPart.id, selectedPart.seller_id, selectedPart.title);
+                      }}
+                      className="flex items-center justify-center gap-2 bg-blue-600 hover:bg-blue-500 text-white py-4 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all shadow-lg shadow-blue-600/20"
+                    >
+                      <Phone size={16}/> Thirr
+                    </button>
+                    <button 
+                      onClick={() => {
+                        window.open(`https://wa.me/${selectedPart.users?.whatsapp?.replace(/\+/g, '')}`, '_blank');
+                        handleLead(selectedPart.id, selectedPart.seller_id, selectedPart.title);
+                      }}
+                      className="flex items-center justify-center gap-2 bg-[#25D366] hover:bg-[#128C7E] text-white py-4 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all shadow-lg shadow-green-600/20"
+                    >
+                      <MessageCircle size={16}/> WhatsApp
+                    </button>
+                  </div>
                 </div>
               </div>
-
-              {/* Action Buttons */}
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                <a 
-                  href={`tel:${selectedPart.users?.phone}`}
-                  onClick={() => handleLead(selectedPart.id, selectedPart.seller_id, selectedPart.title)}
-                  className="flex items-center justify-center gap-4 bg-white text-black py-6 rounded-[1.5rem] font-black uppercase italic text-xs tracking-widest hover:bg-blue-600 hover:text-white transition-all duration-300 shadow-2xl"
-                >
-                  <Phone size={20} /> Thirr Shitësin
-                </a>
-                <a 
-                  href={`https://wa.me/${selectedPart.users?.whatsapp || selectedPart.users?.phone}`}
-                  target="_blank"
-                  onClick={() => handleLead(selectedPart.id, selectedPart.seller_id, selectedPart.title)}
-                  className="flex items-center justify-center gap-4 bg-[#25D366] text-white py-6 rounded-[1.5rem] font-black uppercase italic text-xs tracking-widest hover:bg-green-600 transition-all duration-300 shadow-2xl shadow-[#25D366]/10"
-                >
-                  <MessageCircle size={20} /> WhatsApp
-                </a>
+              
+              <div className="text-center pb-6 md:pb-0">
+                <p className="text-[8px] md:text-[10px] font-black text-zinc-700 uppercase tracking-widest">ID e Referencës: {selectedPart.id}</p>
               </div>
             </div>
           </div>
