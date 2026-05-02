@@ -7,7 +7,7 @@ import {
   ShieldCheck, User, FileDown, LogOut, CheckCircle2, PieChart, 
   AlertTriangle, Edit2, Save, TrendingUp, DollarSign, Eye, Trash2,
   Check, MessageCircle, Phone, MapPin, Calendar, BarChart3, Clock,
-  Award, FileText, Loader2, CreditCard, Key, AlertCircle, Building, Menu, Search, Bell, BellRing
+  Award, FileText, Loader2, CreditCard, Key, AlertCircle, Building, Menu, Search, Bell, BellRing, RefreshCw
 } from 'lucide-react';
 import {
   LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip,
@@ -540,10 +540,7 @@ export default function GraveyardDashboard() {
                   {uploadingLicense ? <Loader2 size={18} className="animate-spin"/> : <Upload size={18}/>} 
                   Ngarko Licencën Tani
                 </button>
-                <input type="file" ref={licenseInputRef} onChange={(e) => {
-                  const file = e.target.files?.[0];
-                  if (file) handleLicenseUpload(file);
-                }} className="hidden" accept="image/*,application/pdf" />
+                <input type="file" ref={licenseInputRef} onChange={handleLicenseUpload} className="hidden" accept="image/*,application/pdf" />
               </>
             ) : (
               <div className="bg-blue-600/10 border border-blue-500/20 p-4 rounded-xl">
