@@ -54,22 +54,22 @@ export default function Footer() {
           <div className="lg:col-span-4 space-y-8">
             <h4 className="text-[10px] font-black uppercase tracking-[0.4em] text-white/40 mb-6">Asistenca Teknike</h4>
             <div className="bg-white/[0.02] border border-white/5 rounded-3xl p-6 space-y-6">
-              <a href="https://wa.me/355600000000" target="_blank" className="flex items-center gap-4 group">
+              <a href="https://wa.me/355694522606" target="_blank" className="flex items-center gap-4 group">
                 <div className="w-10 h-10 rounded-2xl bg-[#25D366]/10 flex items-center justify-center text-[#25D366] group-hover:bg-[#25D366] group-hover:text-white transition-all duration-300">
                   <Phone size={18} />
                 </div>
                 <div>
                   <p className="text-[9px] font-black uppercase tracking-widest text-zinc-600">WhatsApp 24/7</p>
-                  <p className="text-xs font-black text-white">+355 6X XXX XXXX</p>
+                  <p className="text-xs font-black text-white">+355 69 45 22 606</p>
                 </div>
               </a>
-              <a href="mailto:info@vektra.al" className="flex items-center gap-4 group">
+              <a href="mailto:info@enklan.al" className="flex items-center gap-4 group">
                 <div className="w-10 h-10 rounded-2xl bg-blue-600/10 flex items-center justify-center text-blue-500 group-hover:bg-blue-600 group-hover:text-white transition-all duration-300">
                   <Mail size={18} />
                 </div>
                 <div>
                   <p className="text-[9px] font-black uppercase tracking-widest text-zinc-600">Email Support</p>
-                  <p className="text-xs font-black text-white">info@vektra.al</p>
+                  <p className="text-xs font-black text-white">info@enklan.al</p>
                 </div>
               </a>
             </div>

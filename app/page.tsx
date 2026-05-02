@@ -353,7 +353,7 @@ export default function LandingPage() {
                   </a>
                 </div>
                 <a 
-                  href={`mailto:${selectedPart.users?.email || 'info@vektra.al'}?subject=${encodeURIComponent(`Porosi Pjesë: ${selectedPart.title}`)}&body=${encodeURIComponent(`Përshëndetje ${selectedPart.users?.name},\n\nJam i interesuar për të blerë pjesën "${selectedPart.title}" të cilën e keni postuar në VEKTRA.\n\nModeli: ${selectedPart.model}\nÇmimi: ${selectedPart.price}€\n\nJu lutem më kontaktoni për hapat e mëtejshëm.`)}`}
+                  href={`mailto:${selectedPart.users?.email || 'info@enklan.al'}?subject=${encodeURIComponent(`Porosi Pjesë: ${selectedPart.title}`)}&body=${encodeURIComponent(`Përshëndetje ${selectedPart.users?.name},\n\nJam i interesuar për të blerë pjesën "${selectedPart.title}" të cilën e keni postuar në VEKTRA.\n\nModeli: ${selectedPart.model}\nÇmimi: ${selectedPart.price}€\n\nJu lutem më kontaktoni për hapat e mëtejshëm.`)}`}
                   className="flex items-center justify-center gap-3 bg-zinc-800 text-white py-5 rounded-2xl font-black uppercase italic text-[11px] tracking-wider hover:bg-zinc-700 transition-all"
                 >
                   <Mail size={18} /> Porosit përmes Email
