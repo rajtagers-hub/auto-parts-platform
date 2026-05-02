@@ -2,7 +2,7 @@
 import { useState, useEffect } from "react";
 import { supabase } from "@/lib/supabaseClient";
 import { useRouter } from "next/navigation";
-import { ChevronLeft } from "lucide-react";
+import { ChevronLeft, Shield, Upload } from "lucide-react";
 import dynamic from "next/dynamic";
 
 // Dynamically import Turnstile to avoid SSR issues
@@ -17,11 +17,13 @@ export default function Signup() {
     name: "",
     email: "",
     password: "",
-    userType: "Individual",
+    userType: "Graveyard",
     phone: "",
     city: "",
     nipt: "",
   });
+  const [licenseFile, setLicenseFile] = useState<File | null>(null);
+  const [licensePreview, setLicensePreview] = useState<string | null>(null);
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
   const [turnstileToken, setTurnstileToken] = useState<string | null>(null);
@@ -32,6 +34,10 @@ export default function Signup() {
     e.preventDefault();
     if (!turnstileToken) {
       setError("Ju lutemi plotësoni CAPTCHA.");
+      return;
+    }
+    if (form.userType === "Graveyard" && !licenseFile) {
+      setError("Ju lutemi ngarkoni licencën e biznesit.");
       return;
     }
     setLoading(true);
@@ -57,6 +63,21 @@ export default function Signup() {
       return;
     }
 
+    // Upload license if exists
+    let licenseUrl = null;
+    if (licenseFile) {
+      const fileName = `license_${Date.now()}_${licenseFile.name}`;
+      const { data: uploadData, error: uploadError } = await supabase.storage
+        .from('licenses')
+        .upload(fileName, licenseFile);
+      if (uploadError) {
+        setError("Gabim gjatë ngarkimit të licencës: " + uploadError.message);
+        setLoading(false);
+        return;
+      }
+      licenseUrl = supabase.storage.from('licenses').getPublicUrl(fileName).data.publicUrl;
+    }
+
     // Sign up with Supabase
     const { error: authError } = await supabase.auth.signUp({
       email: form.email,
@@ -67,7 +88,9 @@ export default function Signup() {
           user_type: form.userType,
           phone: form.phone,
           city: form.city,
-          nipt: form.nipt
+          nipt: form.nipt,
+          business_license: licenseUrl,
+          license_verified: !!licenseUrl
         } 
       },
     });
@@ -123,10 +146,9 @@ export default function Signup() {
           name="userType"
           value={form.userType}
           onChange={(e) => setForm({ ...form, userType: e.target.value })}
-          className="w-full bg-white/5 p-4 rounded-xl mb-4"
+          className="w-full bg-white/5 border border-white/10 rounded-xl p-4 mb-4 text-white outline-none focus:border-blue-500 transition-all"
         >
-          <option value="Individual">Individ (Shitës i pavarur)</option>
-          <option value="Graveyard">Pikë Skrapi (Graveyard)</option>
+          <option value="Graveyard">Pikë Skrapi (Biznes i Autorizuar)</option>
         </select>
         <input
           type="text"
@@ -152,7 +174,42 @@ export default function Signup() {
             value={form.nipt}
             onChange={(e) => setForm({ ...form, nipt: e.target.value })}
             className="w-full bg-white/5 p-4 rounded-xl mb-4"
+            required
           />
+        )}
+
+        {form.userType === "Graveyard" && (
+          <div className="mb-6">
+            <label className="block text-[10px] font-black uppercase text-zinc-600 mb-2 ml-1 tracking-widest">Ngarko Licencën e Biznesit (QKL)*</label>
+            <div 
+              onClick={() => document.getElementById('license_upload')?.click()}
+              className="w-full h-32 border-2 border-dashed border-white/10 rounded-xl flex flex-col items-center justify-center cursor-pointer hover:border-blue-600/50 transition-all bg-white/[0.02]"
+            >
+              {licensePreview ? (
+                <div className="flex items-center gap-2 text-blue-500 font-bold text-xs uppercase italic">
+                  <Shield size={16}/> File i ngarkuar
+                </div>
+              ) : (
+                <>
+                  <Upload size={24} className="text-zinc-600"/>
+                  <p className="text-[10px] mt-2 text-zinc-500 font-bold uppercase">Kliko për të ngarkuar PDF ose Foto</p>
+                </>
+              )}
+            </div>
+            <input 
+              id="license_upload"
+              type="file" 
+              onChange={(e) => {
+                const file = e.target.files?.[0];
+                if (file) {
+                  setLicenseFile(file);
+                  setLicensePreview(URL.createObjectURL(file));
+                }
+              }}
+              className="hidden" 
+              accept="image/*,application/pdf"
+            />
+          </div>
         )}
 
         {/* Turnstile widget */}

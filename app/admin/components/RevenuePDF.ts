@@ -9,7 +9,7 @@ export function downloadAllUsersPDF(users: any[], parts: any[]) {
   // Title
   doc.setFontSize(20);
   doc.setFont("helvetica", "bold");
-  doc.text("Auto Forms - Raport Mujor", 14, 22);
+  doc.text("VEKTRA - Raport Mujor", 14, 22);
   doc.setFontSize(10);
   doc.setFont("helvetica", "normal");
   doc.text(`Data: ${dateStr}`, 14, 30);
@@ -49,7 +49,7 @@ export function downloadSingleUserPDF(user: any, parts: any[]) {
   // Header
   doc.setFontSize(20);
   doc.setFont("helvetica", "bold");
-  doc.text("Auto Forms - Raport Individual", 14, 22);
+  doc.text("VEKTRA - Raport Individual", 14, 22);
 
   doc.setFontSize(10);
   doc.setFont("helvetica", "normal");

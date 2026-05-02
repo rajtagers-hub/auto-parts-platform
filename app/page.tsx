@@ -8,6 +8,7 @@ import {
   Sparkles, TrendingUp, Star, Zap, ArrowRight, Menu, Car, Search as SearchIcon,
   Package, MapPin, MessageCircle
 } from 'lucide-react';
+import Footer from '@/components/Footer';
 
 const carBrands = [
   "ALFA ROMEO", "AUDI", "BMW", "CHEVROLET", "CITROEN", "DACIA", "FIAT", "FORD",
@@ -129,7 +130,7 @@ export default function LandingPage() {
       <nav className="fixed top-0 w-full z-40 bg-black/90 backdrop-blur-md border-b border-white/5 px-6 py-5">
         <div className="max-w-7xl mx-auto flex justify-between items-center">
           <Link href="/" className="flex items-center gap-2">
-            <img src="/autoforms.svg" alt="Auto Forms" className="h-8 w-auto" />
+            <img src="/vektra.svg" alt="VEKTRA" className="h-8 w-auto" />
           </Link>
           <div className="flex items-center gap-4">
             <button className="hidden sm:flex items-center gap-2 text-[10px] font-black uppercase tracking-widest bg-white/5 border border-white/10 px-4 py-2 rounded-full hover:bg-white/10 transition-colors">
@@ -187,7 +188,7 @@ export default function LandingPage() {
                 <span className="text-[9px] font-bold opacity-30 uppercase tracking-widest text-white">Modeli: 2024 Series</span>
               </div>
               <div className="px-5 py-2 rounded-full border border-white/10 text-[10px] font-black uppercase tracking-widest bg-zinc-900 shadow-inner text-white">
-                Auto Forms Albania
+                VEKTRA ALBANIA
               </div>
             </div>
             <div className="mt-auto border-t border-white/5 pt-8">
@@ -352,7 +353,7 @@ export default function LandingPage() {
                   </a>
                 </div>
                 <a 
-                  href={`mailto:${selectedPart.users?.email || 'info@autoforms.al'}?subject=${encodeURIComponent(`Porosi Pjesë: ${selectedPart.title}`)}&body=${encodeURIComponent(`Përshëndetje ${selectedPart.users?.name},\n\nJam i interesuar për të blerë pjesën "${selectedPart.title}" të cilën e keni postuar në Auto Forms.\n\nModeli: ${selectedPart.model}\nÇmimi: ${selectedPart.price}€\n\nJu lutem më kontaktoni për hapat e mëtejshëm.`)}`}
+                  href={`mailto:${selectedPart.users?.email || 'info@vektra.al'}?subject=${encodeURIComponent(`Porosi Pjesë: ${selectedPart.title}`)}&body=${encodeURIComponent(`Përshëndetje ${selectedPart.users?.name},\n\nJam i interesuar për të blerë pjesën "${selectedPart.title}" të cilën e keni postuar në VEKTRA.\n\nModeli: ${selectedPart.model}\nÇmimi: ${selectedPart.price}€\n\nJu lutem më kontaktoni për hapat e mëtejshëm.`)}`}
                   className="flex items-center justify-center gap-3 bg-zinc-800 text-white py-5 rounded-2xl font-black uppercase italic text-[11px] tracking-wider hover:bg-zinc-700 transition-all"
                 >
                   <Mail size={18} /> Porosit përmes Email
@@ -381,48 +382,7 @@ export default function LandingPage() {
         </div>
       </section>
 
-      {/* Footer */}
-      <footer className="bg-zinc-950 border-t border-white/5 px-6 py-20">
-        <div className="max-w-7xl mx-auto">
-          <div className="grid grid-cols-1 md:grid-cols-12 gap-16 mb-20">
-            <div className="md:col-span-6 space-y-6">
-              <Link href="/" className="inline-block">
-                <img src="/autoforms.svg" alt="Auto Forms" className="h-8 w-auto" />
-              </Link>
-              <p className="text-sm text-zinc-500 leading-relaxed max-w-sm italic">
-                Zgjidhja juaj për pjesë këmbimi origjinale. Ne lidhim kërkesën tuaj me pikat më të mira të skrapit në vend.
-              </p>
-            </div>
-            <div className="md:col-span-3 space-y-6">
-              <h4 className="text-[10px] font-black uppercase tracking-[0.3em] text-white">Legjislacioni</h4>
-              <ul className="space-y-4 text-[11px] font-bold uppercase tracking-widest text-zinc-500">
-                <li><a href="/kushtet" className="flex items-center gap-3 hover:text-white transition-colors"><Scale className="w-4 h-4" /> Kushtet e Përdorimit</a></li>
-                <li><a href="/privatesia" className="flex items-center gap-3 hover:text-white transition-colors"><FileText className="w-4 h-4" /> Politika e Privatësisë</a></li>
-              </ul>
-            </div>
-            <div className="md:col-span-3 space-y-6">
-              <h4 className="text-[10px] font-black uppercase tracking-[0.3em] text-white">Kontakt</h4>
-              <ul className="space-y-4 text-[11px] font-bold uppercase tracking-widest text-zinc-500">
-                <li><a href="https://wa.me/355600000000" target="_blank" className="flex items-center gap-3 hover:text-green-500 transition-colors"><Phone className="w-4 h-4" /> +355 6X XXX XXXX</a></li>
-                <li><a href="mailto:info@autoforms.al" className="flex items-center gap-3 hover:text-blue-500 transition-colors lowercase"><Mail className="w-4 h-4" /> info@autoforms.al</a></li>
-              </ul>
-            </div>
-          </div>
-          <div className="border-t border-white/5 pt-10">
-            <div className="flex flex-col md:flex-row justify-between gap-8 text-[10px] font-medium text-zinc-500 italic leading-relaxed">
-              <div className="max-w-2xl uppercase text-zinc-500">
-                <p className="font-black mb-2 text-zinc-400 tracking-widest underline decoration-blue-600 underline-offset-4">Deklaratë Ligjore:</p>
-                Auto Forms nuk mban përgjegjësi për gjendjen teknike, cilësinë apo çmimet e produkteve të shpërndara nga pikat e autorizuara të skrapit.
-              </div>
-              <div className="md:text-right flex flex-col justify-end">
-                <div className="font-black tracking-[0.3em] text-white uppercase mb-1">© 2026 Të gjitha të drejtat e rezervuara</div>
-                <div className="font-black tracking-[0.3em] opacity-40 uppercase">ENKLAN SH.P.K</div>
-                <div className="text-[9px] mt-2 opacity-20 uppercase tracking-[0.2em]">MADE IN ALBANIA</div>
-              </div>
-            </div>
-          </div>
-        </div>
-      </footer>
+      <Footer />
     </div>
   );
 }

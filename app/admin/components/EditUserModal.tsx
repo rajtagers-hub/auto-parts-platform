@@ -84,7 +84,6 @@ export default function EditUserModal({ user, onClose, onSave }: EditUserModalPr
               onChange={e => setForm({ ...form, user_type: e.target.value })}
               className="w-full bg-white/5 border border-white/10 rounded-xl p-3 text-sm outline-none focus:border-blue-500/50 transition-colors"
             >
-              <option value="Individual">Individual</option>
               <option value="Graveyard">Graveyard</option>
               <option value="Admin">Admin</option>
             </select>

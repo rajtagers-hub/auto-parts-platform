@@ -1,0 +1,13 @@
+<svg width="240" height="60" viewBox="0 0 240 60" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <!-- Modern Geometric V Icon -->
+  <path d="M15 10L35 50L55 10" stroke="#2563EB" stroke-width="8" stroke-linecap="square" stroke-linejoin="miter"/>
+  <path d="M25 10L35 30" stroke="white" stroke-width="4" stroke-opacity="0.3" stroke-linecap="square"/>
+  
+  <!-- Text -->
+  <text x="70" y="44" fill="white" style="font-family: 'Inter', sans-serif; font-weight: 900; font-style: italic; font-size: 38px; letter-spacing: -0.02em;">
+    VEKTRA
+  </text>
+  
+  <!-- Accent dot -->
+  <circle cx="230" cy="40" r="4" fill="#2563EB" />
+</svg>

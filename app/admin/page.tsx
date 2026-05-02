@@ -4,9 +4,9 @@ import { supabase } from "@/lib/supabaseClient";
 import { useRouter } from "next/navigation";
 import {
   Users, Package, Shield, LayoutDashboard, LogOut,
-  CheckCircle, XCircle, BadgeCheck, CreditCard, Trash2,
+  CheckCircle, BadgeCheck, CreditCard, Trash2,
   ChevronDown, Search, RefreshCw, Pencil, Download, FileDown,
-  UserCircle, AlertTriangle, Menu, X
+  UserCircle, AlertTriangle, Menu, X, Key, Eye, ShieldAlert
 } from "lucide-react";
 import EditUserModal from "./components/EditUserModal";
 import { downloadUserRevenueCSV, downloadSingleUserRevenueCSV } from "./components/RevenueDownload";
@@ -28,6 +28,8 @@ export default function AdminDashboard() {
   const [deletionRequests, setDeletionRequests] = useState<any[]>([]);
   const [adminProfile, setAdminProfile] = useState<any>(null);
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
+  const [resettingPasswordUser, setResettingPasswordUser] = useState<any | null>(null);
+  const [newAdminPassword, setNewAdminPassword] = useState("");
 
   const showToast = (message: string, type: "success" | "error" = "success") => {
     setToast({ message, type });
@@ -158,6 +160,27 @@ export default function AdminDashboard() {
     }
   };
 
+  const handleResetPassword = async () => {
+    if (!resettingPasswordUser || !newAdminPassword) return;
+    setActionLoading(`reset-${resettingPasswordUser.id}`);
+    try {
+      const res = await fetch('/api/admin/reset-password', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ userId: resettingPasswordUser.id, newPassword: newAdminPassword })
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error);
+      showToast("Fjalëkalimi u rivendos me sukses");
+      setResettingPasswordUser(null);
+      setNewAdminPassword("");
+    } catch (err: any) {
+      showToast(err.message, "error");
+    } finally {
+      setActionLoading(null);
+    }
+  };
+
   const handleRejectDeletion = async (requestId: string) => {
     try {
       await supabase.from("deletion_requests").update({ status: "rejected" }).eq("id", requestId);
@@ -173,16 +196,20 @@ export default function AdminDashboard() {
     router.push("/login");
   };
 
-  // Stats
-  const totalUsers = users.length;
-  const activeUsers = users.filter(u => u.status === "Active").length;
-  const suspendedUsers = users.filter(u => u.status === "Suspended").length;
+  // Stats (Focus only on Graveyard users)
+  const businessUsers = users.filter(u => u.user_type === "Graveyard");
+  const totalUsers = businessUsers.length;
+  const activeUsers = businessUsers.filter(u => u.status === "Active").length;
+  const suspendedUsers = businessUsers.filter(u => u.status === "Suspended").length;
   const totalParts = parts.length;
   const activeParts = parts.filter(p => p.status === "Active").length;
-  const graveyardUsers = users.filter(u => u.user_type === "Graveyard").length;
+  const graveyardUsers = businessUsers.length;
+  
+  const totalPlatformDebt = businessUsers.reduce((acc, u) => acc + (u.current_debt || 0), 0);
+  const overdueUsers = businessUsers.filter(u => (u.current_debt || 0) > 0).sort((a,b) => (b.current_debt || 0) - (a.current_debt || 0));
 
-  // Filtered data
-  const filteredUsers = users.filter(u => {
+  // Filtered data (Excluding individuals)
+  const filteredUsers = businessUsers.filter(u => {
     const matchesSearch = (u.name || "").toLowerCase().includes(searchQuery.toLowerCase()) ||
       (u.email || "").toLowerCase().includes(searchQuery.toLowerCase());
     const matchesStatus = statusFilter === "all" || u.status === statusFilter;
@@ -230,7 +257,7 @@ export default function AdminDashboard() {
 
       {/* Mobile Header */}
       <div className="lg:hidden flex items-center justify-between p-4 bg-[#0A0A0A] border-b border-white/5 sticky top-0 z-50">
-        <h1 className="text-lg font-black italic uppercase tracking-wider">Auto Forms</h1>
+        <h1 className="text-lg font-black italic uppercase tracking-wider">VEKTRA</h1>
         <button 
           onClick={() => setIsMobileMenuOpen(!isMobileMenuOpen)}
           className="p-2 hover:bg-white/5 rounded-lg transition-colors"
@@ -245,7 +272,7 @@ export default function AdminDashboard() {
         ${isMobileMenuOpen ? "translate-x-0" : "-translate-x-full lg:translate-x-0"}
       `}>
         <div className="p-6 border-b border-white/5 hidden lg:block">
-          <h1 className="text-lg font-black italic uppercase tracking-wider">Auto Forms</h1>
+          <h1 className="text-lg font-black italic uppercase tracking-wider">VEKTRA</h1>
           <p className="text-[10px] text-zinc-600 uppercase tracking-widest font-bold mt-1">Admin Panel</p>
         </div>
         <nav className="flex-1 p-4 space-y-1 overflow-y-auto">
@@ -306,21 +333,72 @@ export default function AdminDashboard() {
         {activeTab === "overview" && (
           <div className="space-y-6">
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-              {[
-                { label: "Total Përdorues", value: totalUsers, color: "blue", icon: Users },
-                { label: "Aktiv", value: activeUsers, color: "emerald", icon: CheckCircle },
-                { label: "Pezulluar", value: suspendedUsers, color: "red", icon: XCircle },
-                { label: "Total Pjesë", value: totalParts, color: "purple", icon: Package },
-              ].map((stat, i) => (
-                <div key={i} className={`bg-[#0A0A0A] border border-white/5 rounded-2xl p-6 hover:border-${stat.color}-500/20 transition-all group`}>
-                  <div className="flex items-center justify-between mb-4">
-                    <span className="text-[10px] font-black uppercase tracking-[0.3em] text-zinc-600">{stat.label}</span>
-                    <stat.icon className={`w-4 h-4 text-${stat.color}-500 opacity-50 group-hover:opacity-100 transition-opacity`} />
+                {[
+                  { label: "Total Përdorues", value: totalUsers, color: "blue", icon: Users },
+                  { label: "Aktiv", value: activeUsers, color: "emerald", icon: CheckCircle },
+                  { label: "Borxhi Total", value: `${totalPlatformDebt.toFixed(0)}€`, color: "yellow", icon: CreditCard },
+                  { label: "Total Pjesë", value: totalParts, color: "purple", icon: Package },
+                ].map((stat, i) => (
+                  <div key={i} className={`bg-[#0A0A0A] border border-white/5 rounded-2xl p-6 hover:border-${stat.color}-500/20 transition-all group`}>
+                    <div className="flex items-center justify-between mb-4">
+                      <span className="text-[10px] font-black uppercase tracking-[0.3em] text-zinc-600">{stat.label}</span>
+                      <stat.icon className={`w-4 h-4 text-${stat.color}-500 opacity-50 group-hover:opacity-100 transition-opacity`} />
+                    </div>
+                    <p className={`text-4xl font-black italic ${stat.color === 'yellow' ? 'text-yellow-500' : ''}`}>{stat.value}</p>
                   </div>
-                  <p className="text-4xl font-black italic">{stat.value}</p>
+                ))}
+              </div>
+
+              {/* Billing Cycle Reminders */}
+              <div className="bg-[#0A0A0A] border border-yellow-500/10 rounded-2xl p-8">
+                <div className="flex items-center justify-between mb-8">
+                  <div>
+                    <h3 className="text-xl font-black uppercase italic tracking-tight text-yellow-500">Ciklet e Pagesave</h3>
+                    <p className="text-zinc-600 text-[10px] uppercase tracking-widest font-bold mt-1">Përdoruesit me pagesa të prapambetura</p>
+                  </div>
+                  <div className="bg-yellow-500/10 text-yellow-500 px-4 py-2 rounded-full text-[10px] font-black uppercase tracking-widest">
+                    {overdueUsers.length} ALERT
+                  </div>
                 </div>
-              ))}
-            </div>
+                
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                  {overdueUsers.length === 0 ? (
+                    <div className="col-span-full py-10 text-center border border-dashed border-white/5 rounded-2xl">
+                      <p className="text-zinc-600 text-xs font-bold uppercase tracking-widest italic">Nuk ka pagesa të prapambetura</p>
+                    </div>
+                  ) : (
+                    overdueUsers.slice(0, 6).map(user => (
+                      <div key={user.id} className="p-5 bg-white/[0.02] border border-white/5 rounded-2xl hover:border-yellow-500/30 transition-all">
+                        <div className="flex justify-between items-start mb-4">
+                          <div>
+                            <p className="font-black text-sm uppercase italic">{user.name}</p>
+                            <p className="text-zinc-600 text-[9px] uppercase tracking-wider">{user.city || 'Qytet i panjohur'}</p>
+                          </div>
+                          <div className="text-right">
+                            <p className="text-xl font-black text-yellow-500">{user.current_debt}€</p>
+                            <p className="text-[8px] font-bold text-zinc-700 uppercase tracking-tighter">BORXHI AKTUAL</p>
+                          </div>
+                        </div>
+                        <div className="flex items-center justify-between pt-4 border-t border-white/5">
+                          <div className="flex items-center gap-2">
+                            <div className="w-2 h-2 bg-yellow-500 rounded-full animate-pulse"></div>
+                            <span className="text-[8px] font-black text-zinc-500 uppercase tracking-widest">Cikli i prapambetur</span>
+                          </div>
+                          <button 
+                            onClick={() => {
+                              setActiveTab('users');
+                              setSearchQuery(user.email);
+                            }}
+                            className="text-[9px] font-black text-blue-500 uppercase hover:text-white transition-colors"
+                          >
+                            Detaje
+                          </button>
+                        </div>
+                      </div>
+                    ))
+                  )}
+                </div>
+              </div>
 
             {/* Recent Users */}
             <div className="bg-[#0A0A0A] border border-white/5 rounded-2xl p-6">
@@ -421,39 +499,82 @@ export default function AdminDashboard() {
               <table className="w-full min-w-[800px]">
                 <thead>
                   <tr className="border-b border-white/5">
-                    {["Emri", "Email", "Tipi", "Qyteti", "Statusi", "Borxhi", "Veprime"].map(h => (
-                      <th key={h} className="text-left py-4 px-6 text-[10px] font-black uppercase tracking-[0.3em] text-zinc-600">{h}</th>
+                    {["Biznesi", "Verifikimi", "Licenca", "Borxhi", "Statusi", "Adresa", "Veprime"].map(h => (
+                      <th key={h} className="text-left py-6 px-6 text-[10px] font-black uppercase tracking-[0.3em] text-zinc-600">{h}</th>
                     ))}
                   </tr>
                 </thead>
                 <tbody>
                   {filteredUsers.map(user => (
                     <tr key={user.id} className="border-b border-white/5 hover:bg-white/[0.02] transition-colors">
-                      <td className="py-4 px-6">
+                      <td className="py-6 px-6">
                         <div className="flex items-center gap-3">
-                          <div className="w-8 h-8 rounded-full bg-blue-600/20 flex items-center justify-center text-blue-400 text-xs font-black">
+                          <div className="w-10 h-10 rounded-xl bg-linear-to-br from-blue-600 to-blue-800 flex items-center justify-center text-white text-sm font-black italic shadow-lg shadow-blue-600/20">
                             {(user.name || "?")[0].toUpperCase()}
                           </div>
-                          <span className="font-bold text-sm">{user.name || "Pa emër"}</span>
+                          <div>
+                            <p className="font-black text-sm uppercase italic">{user.name || "Pa emër"}</p>
+                            <p className="text-zinc-600 text-[10px] lowercase">{user.email}</p>
+                          </div>
                         </div>
                       </td>
-                      <td className="py-4 px-6 text-zinc-400 text-sm">{user.email}</td>
-                      <td className="py-4 px-6">
-                        <span className="text-[10px] font-black uppercase tracking-widest text-zinc-500">{user.user_type}</span>
+                      <td className="py-6 px-6">
+                        {user.license_verified ? (
+                          <div className="flex items-center gap-2 text-emerald-500 bg-emerald-500/10 px-3 py-1 rounded-full w-fit">
+                            <BadgeCheck size={12}/>
+                            <span className="text-[9px] font-black uppercase tracking-widest">Verifikuar</span>
+                          </div>
+                        ) : (
+                          <div className="flex items-center gap-2 text-yellow-500 bg-yellow-500/10 px-3 py-1 rounded-full w-fit">
+                            <ShieldAlert size={12}/>
+                            <span className="text-[9px] font-black uppercase tracking-widest">Në Pritje</span>
+                          </div>
+                        )}
                       </td>
-                      <td className="py-4 px-6 text-zinc-400 text-sm">{user.city || "—"}</td>
-                      <td className="py-4 px-6">
-                        <span className={`text-[10px] font-black uppercase tracking-widest px-3 py-1 rounded-full ${
-                          user.status === "Active" ? "bg-emerald-500/10 text-emerald-400" : "bg-red-500/10 text-red-400"
+                      <td className="py-6 px-6">
+                        {user.business_license ? (
+                          <a 
+                            href={user.business_license} 
+                            target="_blank" 
+                            className="flex items-center gap-2 text-blue-400 hover:text-white transition-colors group"
+                          >
+                            <div className="p-2 bg-blue-600/10 rounded-lg group-hover:bg-blue-600/20">
+                              <Eye size={14}/>
+                            </div>
+                            <span className="text-[10px] font-black uppercase tracking-widest">Shiko</span>
+                          </a>
+                        ) : (
+                          <span className="text-[10px] font-black uppercase tracking-widest text-zinc-700 italic">Pa Ngarkuar</span>
+                        )}
+                      </td>
+                      <td className="py-6 px-6">
+                        <div className="flex flex-col">
+                          <span className={`font-black text-sm ${user.current_debt > 0 ? "text-yellow-500" : "text-emerald-500"}`}>
+                            {user.current_debt || 0}€
+                          </span>
+                          <span className="text-[8px] font-black uppercase text-zinc-700 tracking-tighter">Pagesa Mujore</span>
+                        </div>
+                      </td>
+                      <td className="py-6 px-6">
+                        <span className={`text-[9px] font-black uppercase tracking-widest px-3 py-1 rounded-full border ${
+                          user.status === "Active" ? "bg-emerald-500/10 border-emerald-500/20 text-emerald-400" : "bg-red-500/10 border-red-500/20 text-red-400"
                         }`}>{user.status}</span>
                       </td>
-                      <td className="py-4 px-6">
-                        <span className={`font-bold text-sm ${user.current_debt > 0 ? "text-red-400" : "text-zinc-600"}`}>
-                          {user.current_debt || 0}€
-                        </span>
+                      <td className="py-6 px-6">
+                        <div className="max-w-[150px]">
+                          <p className="text-[10px] font-bold text-zinc-400 truncate uppercase tracking-tighter">{user.address || "—"}</p>
+                          <p className="text-[9px] font-black text-zinc-600 uppercase tracking-widest">{user.city}</p>
+                        </div>
                       </td>
                       <td className="py-4 px-6">
                         <div className="flex items-center gap-2 flex-wrap">
+                          <button
+                            onClick={() => setResettingPasswordUser(user)}
+                            className="p-1.5 rounded-lg bg-yellow-500/10 text-yellow-400 hover:bg-yellow-500/20 transition-all"
+                            title="Ndrysho Fjalëkalimin"
+                          >
+                            <Key className="w-3.5 h-3.5" />
+                          </button>
                           <button
                             onClick={() => setEditingUser(user)}
                             className="p-1.5 rounded-lg bg-white/5 text-zinc-400 hover:text-white hover:bg-white/10 transition-all"
@@ -660,6 +781,45 @@ export default function AdminDashboard() {
           onSave={handleSaveUser}
         />
       )}
+
+      {/* Reset Password Modal */}
+      {resettingPasswordUser && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-6 backdrop-blur-xl bg-black/80">
+          <div className="bg-[#0A0A0A] border border-white/10 rounded-2xl p-6 max-w-md w-full shadow-2xl">
+            <h3 className="text-xl font-black uppercase italic mb-2 text-yellow-500">Reset Password</h3>
+            <p className="text-zinc-600 text-[10px] mb-6 font-black uppercase tracking-widest">
+              Për përdoruesin: <span className="text-white">{resettingPasswordUser.name || resettingPasswordUser.email}</span>
+            </p>
+            <div className="space-y-4">
+              <div className="space-y-1">
+                <label className="text-[9px] font-black uppercase text-zinc-600 ml-1">Fjalëkalimi i Ri</label>
+                <input 
+                  type="text" 
+                  placeholder="Shkruaj fjalëkalimin..." 
+                  value={newAdminPassword}
+                  onChange={e => setNewAdminPassword(e.target.value)}
+                  className="w-full bg-white/5 border border-white/10 rounded-xl p-4 text-white focus:border-blue-500/50 outline-none transition-all"
+                />
+              </div>
+              <div className="flex gap-4 pt-2">
+                <button 
+                  onClick={handleResetPassword}
+                  disabled={actionLoading?.startsWith('reset-')}
+                  className="flex-1 bg-blue-600 py-4 rounded-xl font-black uppercase italic text-sm hover:bg-blue-500 transition-all disabled:opacity-50 shadow-lg shadow-blue-600/20"
+                >
+                  {actionLoading?.startsWith('reset-') ? 'Duke u ruajtur...' : 'RUAJ NDRYSHIMIN'}
+                </button>
+                <button 
+                  onClick={() => { setResettingPasswordUser(null); setNewAdminPassword(""); }}
+                  className="px-8 bg-white/5 py-4 rounded-xl font-black uppercase italic text-sm hover:bg-white/10 transition-all"
+                >
+                  ANULO
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
@@ -749,18 +909,46 @@ function SecurityPanel({ showToast }: { showToast: (msg: string, type?: "success
         </div>
       </div>
 
+      {/* Change Admin Password Section */}
+      <div className="bg-[#0A0A0A] border border-white/5 rounded-2xl p-6 space-y-6">
+        <h3 className="text-sm font-black uppercase tracking-widest mb-2">Siguria e Llogarisë Sime</h3>
+        <div>
+          <label className="block text-[10px] font-black uppercase tracking-[0.3em] text-zinc-600 mb-2">
+            Fjalëkalimi i Ri
+          </label>
+          <input
+            type="password"
+            id="admin_new_password"
+            placeholder="Shkruani fjalëkalimin e ri"
+            className="w-full bg-white/5 border border-white/10 rounded-xl p-3 text-sm outline-none focus:border-blue-500/50 transition-colors"
+          />
+        </div>
+        <button
+          onClick={async () => {
+            const pwd = (document.getElementById('admin_new_password') as HTMLInputElement).value;
+            if (!pwd || pwd.length < 6) return showToast("Fjalëkalimi duhet të jetë të paktën 6 karaktere", "error");
+            const { error } = await supabase.auth.updateUser({ password: pwd });
+            if (error) showToast(error.message, "error");
+            else {
+              showToast("Fjalëkalimi u ndryshua me sukses");
+              (document.getElementById('admin_new_password') as HTMLInputElement).value = "";
+            }
+          }}
+          className="w-full bg-blue-600 text-white py-3 rounded-xl text-[10px] font-black uppercase tracking-widest hover:bg-blue-500 transition-all shadow-lg shadow-blue-600/10"
+        >
+          Ndrysho Fjalëkalimin Tim
+        </button>
+      </div>
+
       <button
         onClick={handleSave}
         disabled={saving}
-        className="w-full bg-blue-600 hover:bg-blue-500 text-white py-4 rounded-xl font-black uppercase italic tracking-wider transition-all disabled:opacity-50"
+        className="w-full bg-white text-black py-4 rounded-xl font-black uppercase italic text-xs tracking-widest hover:bg-blue-600 hover:text-white transition-all disabled:opacity-50"
       >
-        {saving ? "Duke ruajtur..." : "Ruaj Cilësimet"}
+        {saving ? "Duke u ruajtur..." : "RUAJ TË GJITHA CILËSIMET"}
       </button>
     </div>
   );
-}
-
-/* ======================== PROFILE PANEL ======================== */
 function ProfilePanel({ profile, showToast, setProfile }: { profile: any, showToast: any, setProfile: any }) {
   const [form, setForm] = useState({
     name: profile.name || "",

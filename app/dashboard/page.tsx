@@ -32,14 +32,10 @@ export default function DashboardRouter() {
           return;
         }
         hasRedirected.current = true;
-        if (profile.user_type === 'Graveyard') {
-          router.push('/dashboard/graveyard');
-        } else if (profile.user_type === 'Individual') {
-          router.push('/dashboard/individual');
-        } else if (profile.user_type === 'Admin') {
+        if (profile.user_type === 'Admin') {
           router.push('/admin');
         } else {
-          router.push('/login');
+          router.push('/dashboard/graveyard');
         }
       } catch (err) {
         console.error('Dashboard router error:', err);

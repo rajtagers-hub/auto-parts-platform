@@ -4,8 +4,9 @@ import { supabase } from '@/lib/supabaseClient';
 import { useSearchParams, useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { 
-  Search, MapPin, Phone, MessageCircle, Package, Filter, X, ArrowLeft, Mail
+  Search, MapPin, Phone, MessageCircle, Package, Filter, X, ArrowLeft, ArrowRight, Mail, SlidersHorizontal, ChevronDown, Clock, CheckCircle2, ExternalLink
 } from 'lucide-react';
+import Footer from '@/components/Footer';
 
 const ALBANIAN_CITIES = [
   "Tiranë", "Durrës", "Vlorë", "Elbasan", "Shkodër", "Fier", "Korçë", "Berat",
@@ -14,19 +15,23 @@ const ALBANIAN_CITIES = [
 
 interface Part {
   id: string;
+  seller_id: string;
   title: string;
   price: number;
   model: string;
   year: number;
   image_url: string;
   created_at: string;
+  leads?: number;
   description?: string;
   users?: {
     name?: string;
     city?: string;
+    address?: string;
     phone?: string;
     whatsapp?: string;
     email?: string;
+    user_type?: string;
   };
 }
 
@@ -50,31 +55,108 @@ export default function SearchClient() {
   const [parts, setParts] = useState<Part[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
-  const [showFilters, setShowFilters] = useState(false);
   const [sortBy, setSortBy] = useState<'newest' | 'price_asc' | 'price_desc'>('newest');
   const [priceRange, setPriceRange] = useState({ min: 0, max: 10000 });
   const [selectedCity, setSelectedCity] = useState('');
+  const [selectedPart, setSelectedPart] = useState<Part | null>(null);
+  
+  // Infinite Loading States
+  const [page, setPage] = useState(0);
+  const [hasMore, setHasMore] = useState(true);
+  const [loadingMore, setLoadingMore] = useState(false);
+  const PAGE_SIZE = 12;
+
+  const observerTarget = useRef(null);
+
+  const handleLead = async (partId: string, sellerId: string, partTitle: string) => {
+    try {
+      await supabase.rpc('increment_leads', { row_id: partId });
+      // Create notification for seller
+      await supabase.from('notifications').insert({
+        user_id: sellerId,
+        type: 'lead',
+        message: `Një klient kërkoi kontakt për pjesën tuaj: ${partTitle}`,
+        link: '/dashboard/graveyard', // Link to dashboard inventory
+        is_read: false
+      });
+    } catch (err) {
+      // Silent fail
+    }
+  };
+
+  const fetchParts = async (pageNum: number, isNewSearch: boolean = false) => {
+    if (isNewSearch) {
+      setLoading(true);
+      setPage(0);
+      setHasMore(true);
+    } else {
+      setLoadingMore(true);
+    }
+
+    const thirtyDaysAgo = new Date();
+    thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
+
+    let query = supabase
+      .from('parts')
+      .select('*, users!seller_id!inner(name, city, address, phone, whatsapp, email, user_type)')
+      .eq('status', 'Active')
+      .eq('users.user_type', 'Graveyard')
+      .gt('created_at', thirtyDaysAgo.toISOString());
+
+    if (initialBrand) query = query.ilike('category', `%${initialBrand}%`);
+    if (initialModel) query = query.ilike('model', `%${initialModel}%`);
+    if (initialPartType) query = query.ilike('title', `%${initialPartType}%`);
+
+    // Apply sorting
+    if (sortBy === 'price_asc') query = query.order('price', { ascending: true });
+    else if (sortBy === 'price_desc') query = query.order('price', { ascending: false });
+    else query = query.order('created_at', { ascending: false });
+
+    // Pagination
+    const from = pageNum * PAGE_SIZE;
+    const to = from + PAGE_SIZE - 1;
+    query = query.range(from, to);
+
+    const { data, error } = await query;
+    
+    if (!error && data) {
+      if (isNewSearch) {
+        setParts(data);
+      } else {
+        setParts(prev => [...prev, ...data]);
+      }
+      setHasMore(data.length === PAGE_SIZE);
+    }
+
+    setLoading(false);
+    setLoadingMore(false);
+  };
 
   useEffect(() => {
-    const fetchParts = async () => {
-      setLoading(true);
-      let query = supabase
-        .from('parts')
-        .select('*, users!seller_id(name, city, phone, whatsapp, email)')
-        .eq('status', 'Active');
+    fetchParts(0, true);
+  }, [initialBrand, initialModel, initialPartType, sortBy]);
 
-      if (initialBrand) query = query.ilike('category', `%${initialBrand}%`);
-      if (initialModel) query = query.ilike('model', `%${initialModel}%`);
-      if (initialPartType) query = query.ilike('title', `%${initialPartType}%`);
+  // Infinite Scroll Observer
+  useEffect(() => {
+    const observer = new IntersectionObserver(
+      entries => {
+        if (entries[0].isIntersecting && hasMore && !loadingMore && !loading) {
+          setPage(prev => {
+            const nextPage = prev + 1;
+            fetchParts(nextPage);
+            return nextPage;
+          });
+        }
+      },
+      { threshold: 0.1 }
+    );
 
-      const { data } = await query.order('created_at', { ascending: false });
-      setParts(data || []);
-      setLoading(false);
-    };
-    fetchParts();
-  }, [initialBrand, initialModel, initialPartType]);
+    if (observerTarget.current) {
+      observer.observe(observerTarget.current);
+    }
 
-  const [selectedPart, setSelectedPart] = useState<Part | null>(null);
+    return () => observer.disconnect();
+  }, [hasMore, loadingMore, loading]);
 
   const filteredParts = useMemo(() => {
     const filtered = parts.filter(part => {
@@ -98,206 +180,331 @@ export default function SearchClient() {
     setSortBy('newest');
   };
 
-  if (loading) return <div className="min-h-screen bg-black flex items-center justify-center text-blue-500">Duke ngarkuar...</div>;
+  if (loading) return (
+    <div className="min-h-screen bg-black flex flex-col items-center justify-center gap-6">
+      <div className="w-16 h-16 border-4 border-blue-600/20 border-t-blue-600 rounded-full animate-spin"></div>
+      <p className="text-zinc-500 font-black uppercase tracking-[0.3em] text-[10px]">Duke ngarkuar VEKTRA...</p>
+    </div>
+  );
 
   return (
-    <div className="min-h-screen bg-[#050505] text-white font-sans">
+    <div className="min-h-screen bg-[#020202] text-white font-sans selection:bg-blue-600 selection:text-white">
       {/* Header */}
-      <header className="sticky top-0 z-40 bg-black/90 backdrop-blur-md border-b border-white/5 px-6 py-4">
+      <header className="sticky top-0 z-50 bg-black/80 backdrop-blur-xl border-b border-white/5 px-6 py-4">
         <div className="max-w-7xl mx-auto flex justify-between items-center">
-          <button onClick={() => router.push('/')} className="flex items-center gap-2 text-zinc-400 hover:text-white">
-            <ArrowLeft size={18} /> <span className="text-[10px] font-black uppercase">Kthehu</span>
+          <button 
+            onClick={() => router.push('/')} 
+            className="group flex items-center gap-3 text-zinc-500 hover:text-white transition-all duration-300"
+          >
+            <div className="w-8 h-8 rounded-full border border-white/10 flex items-center justify-center group-hover:border-white group-hover:bg-white group-hover:text-black transition-all">
+              <ArrowLeft size={16} />
+            </div>
+            <span className="text-[10px] font-black uppercase tracking-widest">Kthehu</span>
           </button>
-          <Link href="/">
-            <img src="/autoforms.svg" alt="Auto Forms" className="h-8 w-auto" />
+          
+          <Link href="/" className="hover:opacity-80 transition-opacity">
+            <img src="/vektra.svg" alt="VEKTRA" className="h-7 w-auto" />
           </Link>
-          <div className="w-20"></div>
+
+          <div className="flex items-center gap-4">
+            <div className="hidden md:flex items-center gap-2 px-4 py-2 bg-white/5 border border-white/10 rounded-full text-[10px] font-black uppercase tracking-widest text-zinc-400">
+              <span className="w-1.5 h-1.5 bg-green-500 rounded-full animate-pulse"></span>
+              Sistemi LIVE
+            </div>
+          </div>
         </div>
       </header>
 
-      <div className="max-w-7xl mx-auto px-6 py-10">
-        <h1 className="text-5xl md:text-7xl font-black italic uppercase tracking-tighter leading-none mb-6">
-          REZULTATET<span className="text-blue-600"> E KËRKIMIT</span>
-        </h1>
-        <p className="text-zinc-500 text-sm mb-8">{filteredParts.length} pjesë të gjetura</p>
-
-        {/* Filters */}
-        <div className="flex flex-wrap gap-4 mb-8 pb-6 border-b border-white/5">
-          <div className="relative flex-1 max-w-md">
-            <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-zinc-600" size={16}/>
-            <input placeholder="Kërko në rezultate..." value={searchTerm} onChange={e=>setSearchTerm(e.target.value)} className="w-full bg-white/5 border border-white/10 rounded-xl py-3 pl-12 pr-4 text-sm text-white"/>
+      <main className="max-w-7xl mx-auto px-6 py-12 md:py-20">
+        {/* Title Section */}
+        <div className="relative mb-16 md:mb-24">
+          <div className="absolute -top-10 -left-10 w-40 h-40 bg-blue-600/10 blur-[100px] rounded-full"></div>
+          <h1 className="text-6xl md:text-8xl font-black italic uppercase tracking-tighter leading-none mb-6 relative">
+            Zbuloni<span className="text-blue-600"> Pjesën Tuaj</span>
+          </h1>
+          <div className="flex items-center gap-4 text-zinc-500 text-xs font-bold uppercase tracking-[0.2em]">
+            <Clock size={14} className="text-blue-600" />
+            Përditësuar në kohë reale • {filteredParts.length} rezultate të gjetura
           </div>
-          <select value={sortBy} onChange={e=>setSortBy(e.target.value as 'newest' | 'price_asc' | 'price_desc')} className="bg-white/5 border border-white/10 rounded-xl px-4 py-3 text-sm text-white">
-            <option value="newest">Më të rejat</option>
-            <option value="price_asc">Çmimi: Nga më i ulëti</option>
-            <option value="price_desc">Çmimi: Nga më i larti</option>
-          </select>
-          <select value={selectedCity} onChange={e=>setSelectedCity(e.target.value)} className="bg-white/5 border border-white/10 rounded-xl px-4 py-3 text-sm text-white">
-            <option value="">Të gjitha qytetet</option>
-            {ALBANIAN_CITIES.map(city => <option key={city} value={city}>{city}</option>)}
-          </select>
-          <div className="flex items-center gap-3">
-            <span className="text-[10px] text-zinc-500">Çmimi:</span>
-            <input type="number" placeholder="Min €" value={priceRange.min===0 ? '' : priceRange.min} onChange={e=>setPriceRange({...priceRange, min: parseInt(e.target.value)||0})} className="w-24 bg-white/5 border border-white/10 rounded-xl px-3 py-2 text-sm text-white"/>
-            <span>-</span>
-            <input type="number" placeholder="Max €" value={priceRange.max===10000 ? '' : priceRange.max} onChange={e=>setPriceRange({...priceRange, max: parseInt(e.target.value)||10000})} className="w-24 bg-white/5 border border-white/10 rounded-xl px-3 py-2 text-sm text-white"/>
+        </div>
+
+        {/* Professional Filter Bar (Desktop) */}
+        <div className="hidden lg:block mb-12 animate-in fade-in slide-in-from-top-4 duration-700 delay-200">
+          <div className="bg-[#0A0A0A] border border-white/5 rounded-[3rem] p-4 shadow-2xl">
+            <div className="flex items-center gap-4">
+              {/* Search Input */}
+              <div className="relative flex-1 group">
+                <Search className="absolute left-6 top-1/2 -translate-y-1/2 text-zinc-600 group-focus-within:text-blue-500 transition-colors" size={18}/>
+                <input 
+                  placeholder="Kërkoni pjesë..." 
+                  value={searchTerm} 
+                  onChange={e=>setSearchTerm(e.target.value)} 
+                  className="w-full bg-white/5 border border-white/10 rounded-2xl py-4 pl-16 pr-6 text-sm text-white placeholder:text-zinc-600 outline-none focus:border-blue-600/50 focus:bg-white/[0.08] transition-all"
+                />
+              </div>
+
+              <div className="flex gap-3">
+                <div className="relative">
+                  <SlidersHorizontal className="absolute left-4 top-1/2 -translate-y-1/2 text-zinc-600" size={14}/>
+                  <select value={sortBy} onChange={e=>setSortBy(e.target.value as any)} className="appearance-none bg-white/5 border border-white/10 rounded-2xl py-4 pl-12 pr-10 text-[10px] font-black uppercase tracking-widest text-zinc-400 outline-none cursor-pointer">
+                    <option value="newest">Më të rejat</option>
+                    <option value="price_asc">Çmimi: Ulët</option>
+                    <option value="price_desc">Çmimi: Lart</option>
+                  </select>
+                  <ChevronDown className="absolute right-4 top-1/2 -translate-y-1/2 text-zinc-600 pointer-events-none" size={14}/>
+                </div>
+
+                <div className="relative">
+                  <MapPin className="absolute left-4 top-1/2 -translate-y-1/2 text-zinc-600" size={14}/>
+                  <select value={selectedCity} onChange={e=>setSelectedCity(e.target.value)} className="appearance-none bg-white/5 border border-white/10 rounded-2xl py-4 pl-12 pr-10 text-[10px] font-black uppercase tracking-widest text-zinc-400 outline-none cursor-pointer">
+                    <option value="">Qyteti</option>
+                    {ALBANIAN_CITIES.map(city => <option key={city} value={city}>{city}</option>)}
+                  </select>
+                  <ChevronDown className="absolute right-4 top-1/2 -translate-y-1/2 text-zinc-600 pointer-events-none" size={14}/>
+                </div>
+
+                <div className="flex items-center gap-2 px-4 bg-white/5 border border-white/10 rounded-2xl">
+                  <span className="text-[10px] font-black uppercase text-zinc-600">€</span>
+                  <input type="number" placeholder="MIN" value={priceRange.min===0 ? '' : priceRange.min} onChange={e=>setPriceRange({...priceRange, min: parseInt(e.target.value)||0})} className="w-16 bg-transparent py-4 text-xs font-bold text-white outline-none" />
+                  <span className="text-zinc-800">•</span>
+                  <input type="number" placeholder="MAX" value={priceRange.max===10000 ? '' : priceRange.max} onChange={e=>setPriceRange({...priceRange, max: parseInt(e.target.value)||10000})} className="w-16 bg-transparent py-4 text-xs font-bold text-white outline-none" />
+                </div>
+
+                {(searchTerm || selectedCity || priceRange.min>0 || priceRange.max<10000 || sortBy!=='newest') && (
+                  <button onClick={clearFilters} className="px-6 py-4 bg-red-500/10 border border-red-500/20 text-red-500 rounded-2xl text-[10px] font-black uppercase tracking-widest hover:bg-red-500 hover:text-white transition-all">
+                    Pastro
+                  </button>
+                )}
+              </div>
+            </div>
+          </div>
+        </div>
+
+        {/* Mobile Filter Options (Stacked for readability) */}
+        <div className="lg:hidden space-y-4 mb-10">
+          <div className="relative group">
+            <Search className="absolute left-6 top-1/2 -translate-y-1/2 text-zinc-600" size={18}/>
+            <input 
+              placeholder="Kërkoni pjesë..." 
+              value={searchTerm} 
+              onChange={e=>setSearchTerm(e.target.value)} 
+              className="w-full bg-[#0A0A0A] border border-white/10 rounded-2xl py-4 pl-16 pr-6 text-sm text-white outline-none"
+            />
+          </div>
+          <div className="grid grid-cols-2 gap-3">
+            <div className="relative">
+              <SlidersHorizontal className="absolute left-4 top-1/2 -translate-y-1/2 text-zinc-600" size={14}/>
+              <select value={sortBy} onChange={e=>setSortBy(e.target.value as any)} className="w-full appearance-none bg-[#0A0A0A] border border-white/10 rounded-2xl py-4 pl-12 pr-10 text-[10px] font-black uppercase tracking-widest text-zinc-400 outline-none">
+                <option value="newest">Më të rejat</option>
+                <option value="price_asc">Çmimi: Ulët</option>
+                <option value="price_desc">Çmimi: Lart</option>
+              </select>
+              <ChevronDown className="absolute right-4 top-1/2 -translate-y-1/2 text-zinc-600 pointer-events-none" size={14}/>
+            </div>
+            <div className="relative">
+              <MapPin className="absolute left-4 top-1/2 -translate-y-1/2 text-zinc-600" size={14}/>
+              <select value={selectedCity} onChange={e=>setSelectedCity(e.target.value)} className="w-full appearance-none bg-[#0A0A0A] border border-white/10 rounded-2xl py-4 pl-12 pr-10 text-[10px] font-black uppercase tracking-widest text-zinc-400 outline-none">
+                <option value="">Qyteti</option>
+                {ALBANIAN_CITIES.map(city => <option key={city} value={city}>{city}</option>)}
+              </select>
+              <ChevronDown className="absolute right-4 top-1/2 -translate-y-1/2 text-zinc-600 pointer-events-none" size={14}/>
+            </div>
+          </div>
+          <div className="flex items-center gap-2 px-4 bg-[#0A0A0A] border border-white/10 rounded-2xl">
+            <span className="text-[10px] font-black uppercase text-zinc-600 tracking-widest">Çmimi:</span>
+            <input type="number" placeholder="MIN" value={priceRange.min===0 ? '' : priceRange.min} onChange={e=>setPriceRange({...priceRange, min: parseInt(e.target.value)||0})} className="flex-1 bg-transparent py-4 text-xs font-bold text-white outline-none" />
+            <span className="text-zinc-800">•</span>
+            <input type="number" placeholder="MAX" value={priceRange.max===10000 ? '' : priceRange.max} onChange={e=>setPriceRange({...priceRange, max: parseInt(e.target.value)||10000})} className="flex-1 bg-transparent py-4 text-xs font-bold text-white outline-none" />
           </div>
           {(searchTerm || selectedCity || priceRange.min>0 || priceRange.max<10000 || sortBy!=='newest') && (
-            <button onClick={clearFilters} className="text-xs text-blue-500 flex items-center gap-1"><X size={14}/> Pastro filtrat</button>
+            <button onClick={clearFilters} className="w-full py-4 bg-red-500/10 border border-red-500/20 text-red-500 rounded-2xl text-[10px] font-black uppercase tracking-widest">
+              Pastro të gjitha filtrat
+            </button>
           )}
         </div>
 
-        {/* Results grid */}
+        {/* Results Grid */}
         {filteredParts.length === 0 ? (
-          <div className="text-center py-20 border-2 border-dashed border-white/5 rounded-3xl">
-            <Package size={64} className="mx-auto text-zinc-800 mb-4"/>
-            <p className="text-zinc-500 font-black uppercase italic">Nuk u gjet asnjë pjesë</p>
+          <div className="flex flex-col items-center justify-center py-40 border border-dashed border-white/10 rounded-[3rem] bg-white/[0.01]">
+            <div className="w-20 h-20 bg-white/5 rounded-full flex items-center justify-center mb-6">
+              <Package size={32} className="text-zinc-700"/>
+            </div>
+            <h3 className="text-2xl font-black italic uppercase text-zinc-400 tracking-tight">Asnjë rezultat</h3>
+            <p className="text-zinc-600 text-xs mt-2 uppercase tracking-widest">Provoni të ndryshoni filtrat e kërkimit</p>
+            <button onClick={clearFilters} className="mt-8 px-8 py-4 bg-white text-black rounded-2xl font-black uppercase italic text-[11px] hover:bg-blue-600 hover:text-white transition-all">Rivendos kërkimin</button>
           </div>
         ) : (
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-8">
+          <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4 md:gap-8">
             {filteredParts.map(part => (
               <div 
                 key={part.id} 
                 onClick={() => setSelectedPart(part)}
-                className="group bg-[#0A0A0A] rounded-4xl overflow-hidden border border-white/5 hover:border-blue-600/30 transition-all cursor-pointer"
+                className="group relative bg-[#080808] rounded-2xl md:rounded-[2.5rem] overflow-hidden border border-white/5 hover:border-blue-600/40 transition-all duration-500 cursor-pointer shadow-2xl"
               >
-                <div className="aspect-square bg-zinc-900 relative">
-                  {part.image_url ? <img src={part.image_url} className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-500"/> : <Package size={48} className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 text-zinc-800"/>}
-                  <div className="absolute top-4 right-4 bg-blue-600 text-white px-4 py-2 rounded-2xl font-black italic text-lg shadow-lg">{part.price}€</div>
+                {/* Image Container */}
+                <div className="aspect-square relative overflow-hidden">
+                  {part.image_url ? (
+                    <img src={part.image_url} alt={part.title} className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-700 ease-out"/>
+                  ) : (
+                    <div className="w-full h-full flex items-center justify-center text-zinc-800"><Package size={48} /></div>
+                  )}
+                  
+                  <div className="absolute top-3 left-3 md:top-6 md:left-6">
+                    <div className="bg-black/50 backdrop-blur-md border border-white/10 text-white px-2 py-1 md:px-4 md:py-1.5 rounded-full text-[8px] md:text-[10px] font-black uppercase italic tracking-widest">
+                      {part.model}
+                    </div>
+                  </div>
+                  
+                  <div className="absolute bottom-3 right-3 md:bottom-6 md:right-6 bg-blue-600 text-white px-3 py-1.5 md:px-6 md:py-3 rounded-lg md:rounded-2xl font-black italic text-lg md:text-2xl shadow-2xl">
+                    {part.price}€
+                  </div>
                 </div>
-                <div className="p-6">
-                  <h3 className="text-xl font-black italic uppercase line-clamp-2">{part.title}</h3>
-                  <p className="text-[10px] text-blue-500 font-black mt-1">{part.model} • {part.year}</p>
-                  <div className="flex items-center gap-3 mt-6 p-4 bg-white/5 rounded-2xl border border-white/5">
-                    <div className="w-10 h-10 rounded-xl bg-blue-600 flex items-center justify-center text-white font-black shadow-lg">
-                      {part.users?.name?.charAt(0)}
-                    </div>
-                    <div className="flex-1">
-                      <p className="text-[10px] font-black uppercase text-white">{part.users?.name || 'Shitës i Verifikuar'}</p>
-                      <div className="flex items-center gap-1 text-[9px] text-zinc-500">
-                        <MapPin size={10}/> {part.users?.city || 'Shqipëri'}
-                      </div>
-                    </div>
-                  </div>
-                  <div className="grid grid-cols-2 gap-2 mt-6">
-                    <a 
-                      href={`tel:${part.users?.phone}`} 
-                      onClick={(e) => e.stopPropagation()}
-                      className="flex items-center justify-center gap-2 bg-white text-black py-3 rounded-2xl font-black uppercase text-[9px] hover:bg-blue-600 hover:text-white transition-all"
-                    >
-                      <Phone size={12}/> Thirr
-                    </a>
-                    <a 
-                      href={`https://api.whatsapp.com/send?phone=${formatWhatsAppNumber(part.users?.whatsapp || '')}&text=${encodeURIComponent(`Përshëndetje! Jam i interesuar për pjesën: ${part.title} (${part.price}€). A është ende në gjendje?`)}`}
-                      target="_blank" 
-                      onClick={(e) => e.stopPropagation()}
-                      className="flex items-center justify-center gap-2 bg-[#25D366] text-white py-3 rounded-2xl font-black uppercase text-[9px] hover:bg-green-600 transition-all"
-                    >
-                      <MessageCircle size={12}/> WhatsApp
-                    </a>
-                  </div>
-                  <div className="mt-4 flex items-center justify-center">
-                    <div className="text-[8px] font-black uppercase text-zinc-500 italic tracking-widest group-hover:text-blue-600 transition-colors">Shtyp për detaje</div>
+
+                {/* Content */}
+                <div className="p-4 md:p-8">
+                  <h3 className="text-sm md:text-xl font-black italic uppercase leading-tight line-clamp-2 min-h-[2.5rem] md:min-h-[3rem] group-hover:text-blue-500 transition-colors">
+                    {part.title}
+                  </h3>
+                  <div className="mt-4 md:mt-8 pt-4 border-t border-white/5 flex items-center justify-between">
+                    <span className="text-[8px] md:text-[10px] font-black text-zinc-600 uppercase tracking-widest">{part.users?.name}</span>
+                    <ArrowRight size={14} className="text-zinc-600" />
                   </div>
                 </div>
               </div>
             ))}
           </div>
         )}
-      </div>
 
-      {/* Part Detail Modal */}
+        {/* Infinite Scroll Trigger */}
+        <div ref={observerTarget} className="h-20 w-full flex items-center justify-center mt-10">
+          {loadingMore && (
+            <div className="flex items-center gap-3 text-zinc-600 animate-pulse">
+              <div className="w-2 h-2 bg-blue-600 rounded-full animate-bounce"></div>
+              <div className="w-2 h-2 bg-blue-600 rounded-full animate-bounce delay-100"></div>
+              <div className="w-2 h-2 bg-blue-600 rounded-full animate-bounce delay-200"></div>
+              <span className="text-[10px] font-black uppercase tracking-[0.3em] ml-2">Duke ngarkuar më shumë...</span>
+            </div>
+          )}
+          {!hasMore && parts.length > 0 && (
+            <p className="text-zinc-700 text-[10px] font-black uppercase tracking-[0.4em] italic">Fundi i listës</p>
+          )}
+        </div>
+      </main>
+
+      {/* Premium Detail Modal */}
       {selectedPart && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 md:p-10 backdrop-blur-xl bg-black/80 animate-in fade-in duration-300">
-          <div className="bg-[#0A0A0A] border border-white/10 w-full max-w-5xl rounded-[2.5rem] overflow-hidden relative max-h-[90vh] flex flex-col md:flex-row shadow-2xl">
+        <div className="fixed inset-0 z-100 flex items-center justify-center p-0 md:p-6 lg:p-10 backdrop-blur-3xl bg-black/90 animate-in fade-in duration-300">
+          <div className="bg-zinc-950 w-full h-full md:h-auto md:max-w-7xl md:rounded-[4rem] border-white/10 border-0 md:border shadow-[0_0_100px_rgba(0,0,0,0.5)] overflow-hidden flex flex-col md:flex-row relative">
+            {/* Close Button Mobile/Desktop */}
             <button 
               onClick={() => setSelectedPart(null)}
-              className="absolute top-6 right-6 z-10 p-3 bg-black/50 hover:bg-black rounded-full text-white backdrop-blur-md transition-all"
+              className="absolute top-6 right-6 z-150 p-4 bg-black/50 backdrop-blur-xl border border-white/10 text-white rounded-full hover:bg-red-600 transition-all shadow-2xl"
             >
               <X size={24} />
             </button>
 
-            {/* Image Area */}
-            <div className="md:w-1/2 bg-zinc-900 relative min-h-[300px]">
+            {/* Modal Image Area */}
+            <div className="w-full md:w-1/2 bg-zinc-950 relative h-[40vh] md:h-auto min-h-[300px]">
               {selectedPart.image_url ? (
-                <img src={selectedPart.image_url} className="w-full h-full object-cover" />
+                <img src={selectedPart.image_url} alt={selectedPart.title} className="w-full h-full object-cover" />
               ) : (
-                <div className="w-full h-full flex items-center justify-center text-zinc-800"><Package size={80} /></div>
+                <div className="w-full h-full flex items-center justify-center text-zinc-900"><Package size={120} /></div>
               )}
-              <div className="absolute bottom-6 left-6 bg-blue-600 text-white px-8 py-4 rounded-3xl font-black italic text-4xl shadow-2xl shadow-blue-600/40">
-                {selectedPart.price}€
+              <div className="absolute inset-0 bg-linear-to-t from-black/80 to-transparent"></div>
+              <div className="absolute bottom-6 left-6 md:bottom-10 md:left-10">
+                <div className="bg-blue-600 text-white px-6 py-3 md:px-10 md:py-6 rounded-2xl md:rounded-[2rem] font-black italic text-3xl md:text-5xl shadow-2xl shadow-blue-600/40">
+                  {selectedPart.price}€
+                </div>
               </div>
             </div>
 
-            {/* Info Area */}
-            <div className="md:w-1/2 p-8 md:p-12 overflow-y-auto flex flex-col">
+            {/* Modal Info Area */}
+            <div className="w-full md:w-1/2 p-6 md:p-16 overflow-y-auto flex flex-col bg-zinc-950">
               <div className="flex-1">
-                <div className="inline-flex items-center gap-2 px-3 py-1 bg-blue-600/10 border border-blue-500/20 text-blue-400 text-[10px] font-black uppercase italic tracking-widest rounded-full mb-6">
-                  ID: {selectedPart.id.substring(0, 8)}
-                </div>
-                <h2 className="text-4xl md:text-5xl font-black italic uppercase leading-none tracking-tighter mb-4">
-                  {selectedPart.title}
-                </h2>
-                <div className="flex flex-wrap gap-4 mb-8">
-                  <div className="px-4 py-2 bg-white/5 rounded-xl text-xs font-black uppercase italic text-zinc-400">
-                    Modeli: <span className="text-white">{selectedPart.model}</span>
+                <div className="flex items-center gap-3 mb-6 md:mb-8">
+                  <div className="px-3 py-1 md:px-4 md:py-1.5 bg-blue-600/10 border border-blue-500/20 text-blue-400 text-[8px] md:text-[10px] font-black uppercase italic tracking-widest rounded-full">
+                    SHTESË E RE
                   </div>
-                  <div className="px-4 py-2 bg-white/5 rounded-xl text-xs font-black uppercase italic text-zinc-400">
-                    Viti: <span className="text-white">{selectedPart.year}</span>
-                  </div>
-                  <div className="px-4 py-2 bg-white/5 rounded-xl text-xs font-black uppercase italic text-zinc-400">
-                    Qyteti: <span className="text-white">{selectedPart.users?.city}</span>
+                  <div className="text-[9px] md:text-[10px] font-bold text-zinc-600 uppercase tracking-widest">
+                    REF: {selectedPart.id.substring(0, 8)}
                   </div>
                 </div>
 
-                <div className="space-y-4 mb-10">
-                  <h4 className="text-[10px] font-black uppercase tracking-[0.3em] text-zinc-500">Përshkrimi i Pjesës</h4>
-                  <p className="text-zinc-400 leading-relaxed italic text-sm md:text-base">
-                    {selectedPart.description || "Nuk ka përshkrim shtesë për këtë pjesë."}
+                <h2 className="text-3xl md:text-6xl font-black italic uppercase leading-none tracking-tighter mb-6 md:mb-8 text-white">
+                  {selectedPart.title}
+                </h2>
+
+                <div className="grid grid-cols-2 lg:grid-cols-5 gap-3 md:gap-4 mb-8 md:mb-12">
+                  {[
+                    { label: "Modeli", value: selectedPart.model },
+                    { label: "Viti", value: selectedPart.year },
+                    { label: "Qyteti", value: selectedPart.users?.city },
+                    { label: "Gjendja", value: "E Mirë" },
+                    { 
+                      label: "Lokacioni", 
+                      value: selectedPart.users?.address || selectedPart.users?.city,
+                      isLink: true,
+                      url: `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent((selectedPart.users?.address || '') + ", " + (selectedPart.users?.city || ''))}`
+                    },
+                  ].map((item, i) => (
+                    <div key={i} className="p-3 md:p-4 bg-white/[0.03] border border-white/5 rounded-xl md:rounded-2xl relative group/item">
+                      <p className="text-[7px] md:text-[8px] font-black uppercase tracking-widest text-zinc-600 mb-1">{item.label}</p>
+                      {item.isLink ? (
+                        <a 
+                          href={item.url} 
+                          target="_blank" 
+                          rel="noopener noreferrer"
+                          className="text-[8px] md:text-[10px] font-black text-blue-500 uppercase flex items-center gap-1 hover:text-white transition-colors"
+                        >
+                          HARTA <ExternalLink size={10}/>
+                        </a>
+                      ) : (
+                        <p className="text-[10px] md:text-xs font-black text-white uppercase">{item.value}</p>
+                      )}
+                    </div>
+                  ))}
+                </div>
+
+                <div className="space-y-4 md:space-y-6 mb-8 md:mb-12">
+                  <h4 className="text-[9px] md:text-[10px] font-black uppercase tracking-[0.4em] text-zinc-500">Specifikimet Teknike</h4>
+                  <p className="text-zinc-400 leading-relaxed italic text-sm md:text-lg">
+                    {selectedPart.description || "Kjo pjesë origjinale është testuar dhe verifikuar për performancë maksimale. Ofrohet me garanci funksionale nga shitësi i autorizuar."}
                   </p>
                 </div>
 
-                <div className="p-6 bg-white/5 rounded-3xl mb-10 border border-white/5">
-                  <div className="flex items-center gap-4">
-                    <div className="w-14 h-14 rounded-2xl bg-blue-600 flex items-center justify-center text-2xl font-black shadow-lg">
-                      {selectedPart.users?.name?.charAt(0)}
+                <div className="bg-white/[0.02] border border-white/5 rounded-3xl p-6 md:p-8 mb-8 md:mb-12">
+                  <div className="flex items-center gap-4 mb-4">
+                    <div className="w-10 h-10 md:w-12 md:h-12 bg-linear-to-br from-blue-600 to-blue-800 rounded-xl flex items-center justify-center text-lg md:text-xl font-black italic shadow-lg shadow-blue-600/20">
+                      {selectedPart.users?.name?.[0].toUpperCase()}
                     </div>
                     <div>
-                      <p className="text-[10px] font-black uppercase text-zinc-500 tracking-widest">Shitësi i Autorizuar</p>
-                      <h4 className="text-xl font-black italic uppercase">{selectedPart.users?.name}</h4>
-                    </div>
-                  </div>
                 </div>
               </div>
 
-              {/* Action Grid */}
-              <div className="grid grid-cols-1 gap-4">
-                <div className="grid grid-cols-2 gap-4">
-                  <a 
-                    href={`tel:${selectedPart.users?.phone}`}
-                    className="flex items-center justify-center gap-3 bg-white text-black py-5 rounded-2xl font-black uppercase italic text-[11px] tracking-wider hover:bg-blue-600 hover:text-white transition-all shadow-xl"
-                  >
-                    <Phone size={18} /> Thirr Shitësin
-                  </a>
-                  <a 
-                    href={`https://api.whatsapp.com/send?phone=${formatWhatsAppNumber(selectedPart.users?.whatsapp || '')}&text=${encodeURIComponent(`Përshëndetje! Jam i interesuar për pjesën: ${selectedPart.title} (${selectedPart.price}€). A është ende në gjendje?`)}`}
-                    target="_blank"
-                    className="flex items-center justify-center gap-3 bg-[#25D366] text-white py-5 rounded-2xl font-black uppercase italic text-[11px] tracking-wider hover:bg-green-600 transition-all shadow-xl"
-                  >
-                    <MessageCircle size={18} /> WhatsApp
-                  </a>
-                </div>
+              {/* Action Buttons */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <a 
-                  href={`mailto:${selectedPart.users?.email || 'info@autoforms.al'}?subject=${encodeURIComponent(`Porosi Pjesë: ${selectedPart.title}`)}&body=${encodeURIComponent(`Përshëndetje ${selectedPart.users?.name},\n\nJam i interesuar për të blerë pjesën "${selectedPart.title}" të cilën e keni postuar në Auto Forms.\n\nModeli: ${selectedPart.model}\nÇmimi: ${selectedPart.price}€\n\nJu lutem më kontaktoni për hapat e mëtejshëm.`)}`}
-                  className="flex items-center justify-center gap-3 bg-zinc-800 text-white py-5 rounded-2xl font-black uppercase italic text-[11px] tracking-wider hover:bg-zinc-700 transition-all"
+                  href={`tel:${selectedPart.users?.phone}`}
+                  onClick={() => handleLead(selectedPart.id, selectedPart.seller_id, selectedPart.title)}
+                  className="flex items-center justify-center gap-4 bg-white text-black py-6 rounded-[1.5rem] font-black uppercase italic text-xs tracking-widest hover:bg-blue-600 hover:text-white transition-all duration-300 shadow-2xl"
                 >
-                  <Mail size={18} /> Porosit përmes Email
+                  <Phone size={20} /> Thirr Shitësin
+                </a>
+                <a 
+                  href={`https://wa.me/${selectedPart.users?.whatsapp || selectedPart.users?.phone}`}
+                  target="_blank"
+                  onClick={() => handleLead(selectedPart.id, selectedPart.seller_id, selectedPart.title)}
+                  className="flex items-center justify-center gap-4 bg-[#25D366] text-white py-6 rounded-[1.5rem] font-black uppercase italic text-xs tracking-widest hover:bg-green-600 transition-all duration-300 shadow-2xl shadow-[#25D366]/10"
+                >
+                  <MessageCircle size={20} /> WhatsApp
                 </a>
               </div>
             </div>
           </div>
         </div>
       )}
+
+      <Footer />
     </div>
   );
 }

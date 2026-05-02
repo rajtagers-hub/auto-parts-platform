@@ -7,7 +7,7 @@ import {
   ShieldCheck, User, FileDown, LogOut, CheckCircle2, PieChart, 
   AlertTriangle, Edit2, Save, TrendingUp, DollarSign, Eye, Trash2,
   Check, MessageCircle, Phone, MapPin, Calendar, BarChart3, Clock,
-  Award, FileText, Loader2, CreditCard, Key, AlertCircle, Building, Menu
+  Award, FileText, Loader2, CreditCard, Key, AlertCircle, Building, Menu, Search, Bell, BellRing
 } from 'lucide-react';
 import {
   LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip,
@@ -20,7 +20,7 @@ const MONTHLY_FEE = 50;
 
 export default function GraveyardDashboard() {
   const router = useRouter();
-  const [view, setView] = useState<'home' | 'inventory' | 'sales' | 'profile' | 'security' | 'analytics'>('home');
+  const [view, setView] = useState<'home' | 'inventory' | 'sales' | 'profile' | 'security' | 'analytics' | 'payments'>('home');
   const [showUpload, setShowUpload] = useState(false);
   const [loading, setLoading] = useState(true);
   const [userId, setUserId] = useState<string | null>(null);
@@ -28,7 +28,7 @@ export default function GraveyardDashboard() {
   const licenseInputRef = useRef<HTMLInputElement>(null);
   
   const [sellerData, setSellerData] = useState({ 
-    name: '', email: '', phone: '', whatsapp: '', city: '', nipt: '',
+    name: '', email: '', phone: '', whatsapp: '', city: '', address: '', nipt: '',
     current_debt: 0, total_paid: 0,
     business_license: '', license_verified: false,
     last_payment_date: '', join_date: ''
@@ -41,9 +41,11 @@ export default function GraveyardDashboard() {
   const [sales, setSales] = useState<any[]>([]);
   const [payments, setPayments] = useState<any[]>([]);
   const [editMode, setEditMode] = useState(false);
-  const [editForm, setEditForm] = useState({ name: '', phone: '', city: '', nipt: '' });
+  const [editForm, setEditForm] = useState({ name: '', phone: '', city: '', address: '', nipt: '' });
   const [confirmingSale, setConfirmingSale] = useState<string | null>(null);
   const [uploadingLicense, setUploadingLicense] = useState(false);
+  const [inventorySearch, setInventorySearch] = useState('');
+  const [editingPart, setEditingPart] = useState<any | null>(null);
   
   // Password change state
   const [showPasswordModal, setShowPasswordModal] = useState(false);
@@ -61,6 +63,9 @@ export default function GraveyardDashboard() {
   // Payment method placeholder
   const [showPaymentModal, setShowPaymentModal] = useState(false);
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
+  const [notifications, setNotifications] = useState<any[]>([]);
+  const [showNotifications, setShowNotifications] = useState(false);
+  const unreadCount = notifications.filter(n => !n.is_read).length;
 
   useEffect(() => {
     const getUser = async () => {
@@ -71,6 +76,7 @@ export default function GraveyardDashboard() {
       await fetchParts(user.id);
       await fetchSales(user.id);
       await fetchPayments(user.id);
+      await fetchNotifications(user.id);
       setLoading(false);
     };
     getUser();
@@ -79,22 +85,50 @@ export default function GraveyardDashboard() {
   async function fetchSellerData(uid: string) {
     const { data } = await supabase
       .from('users')
-      .select('name, email, phone, whatsapp, city, nipt, current_debt, total_paid, business_license, license_verified, last_payment_date, join_date')
+      .select('name, email, phone, whatsapp, city, address, nipt, current_debt, total_paid, business_license, license_verified, last_payment_date, join_date')
       .eq('id', uid)
       .single();
     if (data) {
       setSellerData(data);
-      setEditForm({ name: data.name, phone: data.phone || '', city: data.city || '', nipt: data.nipt || '' });
+      setEditForm({ name: data.name, phone: data.phone || '', city: data.city || '', address: data.address || '', nipt: data.nipt || '' });
     }
   }
 
   async function fetchParts(uid: string) {
-    const { data } = await supabase
+    const thirtyDaysAgo = new Date();
+    thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
+
+    const { data, error } = await supabase
       .from('parts')
       .select('*')
       .eq('seller_id', uid)
       .order('created_at', { ascending: false });
-    if (data) setMyParts(data);
+    
+    if (data) {
+      // Auto-delete expired parts permanently (older than 30 days and still Active)
+      const expiredParts = data.filter(p => p.status === 'Active' && new Date(p.created_at) < thirtyDaysAgo);
+      if (expiredParts.length > 0) {
+        const expiredIds = expiredParts.map(p => p.id);
+        
+        // Remove images from storage first
+        for (const part of expiredParts) {
+          if (part.image_url) {
+            const fileName = part.image_url.split('/').pop();
+            if (fileName) {
+              await supabase.storage.from('parts').remove([fileName]);
+            }
+          }
+        }
+
+        // Delete from DB
+        await supabase.from('parts').delete().in('id', expiredIds);
+        
+        // Refresh local data
+        setMyParts(data.filter(p => !expiredIds.includes(p.id)));
+      } else {
+        setMyParts(data);
+      }
+    }
   }
 
   async function fetchSales(uid: string) {
@@ -114,6 +148,28 @@ export default function GraveyardDashboard() {
       .order('date', { ascending: false });
     if (data) setPayments(data);
   }
+
+  async function fetchNotifications(uid: string) {
+    const { data } = await supabase
+      .from('notifications')
+      .select('*')
+      .eq('user_id', uid)
+      .order('created_at', { ascending: false })
+      .limit(20);
+    if (data) setNotifications(data);
+  }
+
+  const markNotificationsAsRead = async () => {
+    if (unreadCount === 0) return;
+    const { error } = await supabase
+      .from('notifications')
+      .update({ is_read: true })
+      .eq('user_id', userId)
+      .eq('is_read', false);
+    if (!error) {
+      setNotifications(notifications.map(n => ({ ...n, is_read: true })));
+    }
+  };
 
   // Calculate debt based on subscription
   const calculateDebt = useMemo(() => {
@@ -254,13 +310,13 @@ export default function GraveyardDashboard() {
     const { data: { publicUrl } } = supabase.storage.from('licenses').getPublicUrl(fileName);
     const { error: updateError } = await supabase
       .from('users')
-      .update({ business_license: publicUrl })
+      .update({ business_license: publicUrl, license_verified: true })
       .eq('id', userId);
     if (updateError) {
       alert("Gabim gjatë ruajtjes së licencës.");
     } else {
-      setSellerData({ ...sellerData, business_license: publicUrl });
-      alert("Licenca u ngarkua me sukses!");
+      setSellerData({ ...sellerData, business_license: publicUrl, license_verified: true });
+      alert("Licenca u ngarkua me sukses! Llogaria juaj është tani aktive.");
     }
     setUploadingLicense(false);
   };
@@ -268,10 +324,10 @@ export default function GraveyardDashboard() {
   const updateProfile = async () => {
     const { error } = await supabase
       .from('users')
-      .update({ name: editForm.name, phone: editForm.phone, city: editForm.city, nipt: editForm.nipt })
+      .update({ name: editForm.name, phone: editForm.phone, city: editForm.city, address: editForm.address, nipt: editForm.nipt })
       .eq('id', userId);
     if (!error) {
-      setSellerData({ ...sellerData, name: editForm.name, phone: editForm.phone, city: editForm.city, nipt: editForm.nipt });
+      setSellerData({ ...sellerData, name: editForm.name, phone: editForm.phone, city: editForm.city, address: editForm.address, nipt: editForm.nipt });
       setEditMode(false);
       alert("Profili u përditësua!");
     } else {
@@ -281,14 +337,29 @@ export default function GraveyardDashboard() {
 
   const confirmSale = async (partId: string) => {
     setConfirmingSale(partId);
+    const part = myParts.find(p => p.id === partId);
+    if (!part) return;
+
+    const commission = part.price * 0.03;
     const { error } = await supabase
       .from('parts')
       .update({ status: 'Sold' })
       .eq('id', partId);
+
     if (!error) {
+      // Add commission to debt
+      const { error: debtError } = await supabase
+        .from('users')
+        .update({ current_debt: sellerData.current_debt + commission })
+        .eq('id', userId);
+
+      if (!debtError) {
+        setSellerData(prev => ({ ...prev, current_debt: prev.current_debt + commission }));
+      }
+
       await fetchParts(userId!);
       await fetchSales(userId!);
-      alert("Pjesa u shënua si e shitur!");
+      alert(`Pjesa u shënua si e shitur! Komisioni prej ${commission.toFixed(2)}€ u shtua në borxhin tuaj.`);
     } else {
       alert("Gabim gjatë shënimit të shitjes.");
     }
@@ -297,16 +368,76 @@ export default function GraveyardDashboard() {
 
   const deletePart = async (partId: string) => {
     if (confirm("A jeni i sigurt që doni të fshini këtë pjesë? Ky veprim është i pakthyeshëm.")) {
+      const part = myParts.find(p => p.id === partId);
+      
+      // Delete from Storage first
+      if (part?.image_url) {
+        const fileName = part.image_url.split('/').pop();
+        if (fileName) {
+          await supabase.storage.from('parts').remove([fileName]);
+        }
+      }
+
+      // Delete from DB
       const { error } = await supabase
         .from('parts')
         .delete()
         .eq('id', partId);
+
       if (!error) {
         await fetchParts(userId!);
-        alert("Pjesa u fshi.");
+        alert("Pjesa u fshi përgjithmonë bashkë me foton.");
       } else {
         alert("Gabim gjatë fshirjes.");
       }
+    }
+  };
+
+  const relistPart = async (partId: string) => {
+    const { error } = await supabase
+      .from('parts')
+      .update({ status: 'Active', created_at: new Date().toISOString() })
+      .eq('id', partId);
+    if (!error) {
+      await fetchParts(userId!);
+      alert("Pjesa u ri-publikua me sukses!");
+    } else {
+      alert("Gabim gjatë ri-publikimit.");
+    }
+  };
+
+  const dismissLead = async (partId: string, currentLeads: number) => {
+    const { error } = await supabase
+      .from('parts')
+      .update({ leads_processed: currentLeads })
+      .eq('id', partId);
+    if (!error) {
+      await fetchParts(userId!);
+    }
+  };
+
+  const handleEditPart = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!editingPart.title || !editingPart.price) return alert("Plotësoni të dhënat!");
+    
+    const { error } = await supabase
+      .from('parts')
+      .update({
+        title: editingPart.title,
+        price: parseFloat(editingPart.price),
+        model: editingPart.model,
+        year: editingPart.year,
+        category: editingPart.category,
+        description: editingPart.description
+      })
+      .eq('id', editingPart.id);
+
+    if (!error) {
+      await fetchParts(userId!);
+      setEditingPart(null);
+      alert("Ndryshimet u ruajtën me sukses!");
+    } else {
+      alert("Gabim gjatë ruajtjes.");
     }
   };
 
@@ -381,6 +512,60 @@ export default function GraveyardDashboard() {
 
   if (loading) return <div className="min-h-screen bg-black flex items-center justify-center text-blue-500">Duke ngarkuar...</div>;
 
+  const isVerified = sellerData.license_verified;
+
+  if (!isVerified) {
+    return (
+      <div className="min-h-screen bg-[#050505] text-white flex items-center justify-center p-6 font-sans">
+        <div className="max-w-md w-full bg-[#0A0A0A] border border-white/10 rounded-[2.5rem] p-10 text-center shadow-2xl relative overflow-hidden">
+          <div className="absolute -top-24 -left-24 w-48 h-48 bg-blue-600/10 rounded-full blur-3xl"></div>
+          <div className="absolute -bottom-24 -right-24 w-48 h-48 bg-blue-600/10 rounded-full blur-3xl"></div>
+          
+          <div className="w-20 h-20 bg-blue-600/10 rounded-3xl flex items-center justify-center mx-auto mb-8 border border-blue-500/20">
+            <ShieldCheck size={40} className="text-blue-500" />
+          </div>
+          
+          <h2 className="text-3xl font-black italic uppercase tracking-tighter mb-4">Verifikimi i Nevojshëm</h2>
+          <p className="text-zinc-500 text-sm leading-relaxed mb-8 italic">
+            Llogaria juaj nuk është aktive. Për të publikuar pjesë, duhet të ngarkoni licencën e biznesit (QKL) dhe të prisni miratimin nga administratori.
+          </p>
+
+          <div className="space-y-4">
+            {!sellerData.business_license ? (
+              <>
+                <button 
+                  onClick={() => licenseInputRef.current?.click()}
+                  className="w-full bg-white text-black py-4 rounded-xl font-black uppercase italic text-xs tracking-widest hover:bg-blue-600 hover:text-white transition-all flex items-center justify-center gap-3"
+                >
+                  {uploadingLicense ? <Loader2 size={18} className="animate-spin"/> : <Upload size={18}/>} 
+                  Ngarko Licencën Tani
+                </button>
+                <input type="file" ref={licenseInputRef} onChange={(e) => {
+                  const file = e.target.files?.[0];
+                  if (file) handleLicenseUpload(file);
+                }} className="hidden" accept="image/*,application/pdf" />
+              </>
+            ) : (
+              <div className="bg-blue-600/10 border border-blue-500/20 p-4 rounded-xl">
+                <p className="text-blue-500 text-[10px] font-black uppercase tracking-widest">Statusi: Duke u verifikuar</p>
+                <p className="text-zinc-500 text-[9px] mt-1 italic uppercase font-bold tracking-tighter">Licenca juaj është dërguar për shqyrtim.</p>
+              </div>
+            )}
+
+            <button onClick={handleLogout} className="w-full bg-white/5 border border-white/10 py-4 rounded-xl font-black uppercase italic text-xs tracking-widest hover:bg-red-600 transition-all flex items-center justify-center gap-3 mt-4">
+              <LogOut size={18}/> Dil nga llogaria
+            </button>
+          </div>
+          
+          <div className="mt-10 pt-8 border-t border-white/5">
+            <p className="text-zinc-600 text-[10px] font-black uppercase tracking-widest">Vonesa? Na kontaktoni</p>
+            <p className="text-zinc-400 text-xs font-bold mt-1 tracking-tighter uppercase italic">Powered by Enklan Sh.p.k</p>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="min-h-screen bg-[#050505] text-white flex flex-col font-sans">
       <div className="flex flex-1 flex-col lg:flex-row">
@@ -390,14 +575,49 @@ export default function GraveyardDashboard() {
             <div className="w-10 h-10 bg-linear-to-br from-blue-600 to-blue-800 rounded-xl flex items-center justify-center text-lg font-black italic shadow-lg shadow-blue-600/20">
               {sellerData.name?.charAt(0) || 'G'}
             </div>
+            <h2 className="font-black uppercase italic text-[10px] tracking-tighter text-blue-500">VEKTRA</h2>
             <h2 className="font-black uppercase italic text-xs tracking-tighter">{sellerData.name || 'GRAVEYARD'}</h2>
           </div>
-          <button 
-            onClick={() => setIsMobileMenuOpen(!isMobileMenuOpen)}
-            className="p-2 hover:bg-white/5 rounded-lg transition-colors"
-          >
-            {isMobileMenuOpen ? <X size={24} /> : <Menu size={24} />}
-          </button>
+          <div className="flex items-center gap-2">
+            {/* Notification Bell Mobile */}
+            <div className="relative">
+              <button 
+                onClick={() => { setShowNotifications(!showNotifications); markNotificationsAsRead(); }}
+                className={`p-2 rounded-xl transition-all ${unreadCount > 0 ? 'text-blue-500 animate-pulse' : 'text-zinc-500'}`}
+              >
+                {unreadCount > 0 ? <BellRing size={22} /> : <Bell size={22} />}
+                {unreadCount > 0 && <span className="absolute top-1 right-1 w-3.5 h-3.5 bg-red-600 rounded-full text-[8px] font-black flex items-center justify-center text-white border-2 border-black">{unreadCount}</span>}
+              </button>
+              
+              {showNotifications && (
+                <div className="fixed inset-x-4 top-20 bg-[#0A0A0A] border border-white/10 rounded-2xl shadow-2xl z-[60] overflow-hidden animate-in slide-in-from-top-2 duration-300">
+                  <div className="p-4 border-b border-white/5 flex justify-between items-center bg-white/[0.02]">
+                    <h4 className="text-[10px] font-black uppercase tracking-widest text-zinc-500">Njoftimet</h4>
+                    <button onClick={() => setShowNotifications(false)}><X size={16}/></button>
+                  </div>
+                  <div className="max-h-80 overflow-y-auto">
+                    {notifications.length === 0 ? (
+                      <div className="p-8 text-center text-zinc-600 text-[10px] uppercase font-bold">Asnjë njoftim</div>
+                    ) : (
+                      notifications.map(n => (
+                        <div key={n.id} className={`p-4 border-b border-white/5 hover:bg-white/5 transition-all ${!n.is_read ? 'bg-blue-600/5' : ''}`}>
+                          <p className="text-xs text-white leading-relaxed mb-1 font-medium">{n.message}</p>
+                          <p className="text-[8px] text-zinc-600 font-black uppercase">{new Date(n.created_at).toLocaleString('sq-AL')}</p>
+                        </div>
+                      ))
+                    )}
+                  </div>
+                </div>
+              )}
+            </div>
+
+            <button 
+              onClick={() => setIsMobileMenuOpen(!isMobileMenuOpen)}
+              className="p-2 hover:bg-white/5 rounded-lg transition-colors text-zinc-400"
+            >
+              {isMobileMenuOpen ? <X size={24} /> : <Menu size={24} />}
+            </button>
+          </div>
         </div>
 
         {/* Sidebar - Desktop & Mobile */}
@@ -411,12 +631,48 @@ export default function GraveyardDashboard() {
                 {sellerData.name?.charAt(0) || 'G'}
               </div>
               <div>
+                <h2 className="font-black uppercase italic text-[10px] tracking-tighter text-blue-500">VEKTRA</h2>
                 <h2 className="font-black uppercase italic text-sm tracking-tighter">{sellerData.name || 'GRAVEYARD'}</h2>
                 <p className="text-[9px] text-green-500 font-black uppercase mt-2 italic tracking-widest">● PANEL AKTIV</p>
               </div>
             </div>
           </div>
           <nav className="flex-1 p-6 space-y-2 overflow-y-auto">
+            {/* Notification Nav Item */}
+            <div className="relative mb-4">
+              <button 
+                onClick={() => { setShowNotifications(!showNotifications); markNotificationsAsRead(); }}
+                className={`w-full flex items-center justify-between p-4 rounded-2xl border transition-all ${unreadCount > 0 ? 'bg-blue-600/10 border-blue-500/50 text-blue-500 shadow-[0_0_20px_rgba(37,99,235,0.1)]' : 'bg-white/5 border-white/10 text-zinc-500 hover:text-white hover:bg-white/10'}`}
+              >
+                <div className="flex items-center gap-4">
+                  {unreadCount > 0 ? <BellRing size={18} className="animate-pulse" /> : <Bell size={18} />}
+                  <span className="text-[10px] font-black uppercase italic tracking-widest">Njoftimet</span>
+                </div>
+                {unreadCount > 0 && <span className="bg-red-600 px-2 py-0.5 rounded-full text-[9px] font-black text-white">{unreadCount}</span>}
+              </button>
+
+              {showNotifications && (
+                <div className="absolute left-full ml-4 top-0 w-80 bg-[#0A0A0A] border border-white/10 rounded-2xl shadow-2xl z-50 overflow-hidden animate-in slide-in-from-left-2 duration-300">
+                  <div className="p-4 border-b border-white/5 bg-white/[0.02] flex justify-between items-center">
+                    <h4 className="text-[10px] font-black uppercase tracking-widest text-zinc-500">Njoftimet e Fundit</h4>
+                    <button onClick={() => setShowNotifications(false)} className="text-zinc-600 hover:text-white"><X size={14}/></button>
+                  </div>
+                  <div className="max-h-80 overflow-y-auto">
+                    {notifications.length === 0 ? (
+                      <div className="p-8 text-center text-zinc-600 text-[10px] uppercase font-bold">Asnjë njoftim</div>
+                    ) : (
+                      notifications.map(n => (
+                        <div key={n.id} className={`p-4 border-b border-white/5 hover:bg-white/5 transition-all ${!n.is_read ? 'bg-blue-600/5 border-l-2 border-blue-600' : ''}`}>
+                          <p className="text-xs text-zinc-300 leading-relaxed mb-1 font-medium">{n.message}</p>
+                          <p className="text-[8px] text-zinc-600 font-black uppercase tracking-tighter">{new Date(n.created_at).toLocaleString('sq-AL')}</p>
+                        </div>
+                      ))
+                    )}
+                  </div>
+                </div>
+              )}
+            </div>
+
             <button onClick={() => { setView('home'); setIsMobileMenuOpen(false); }} className={`w-full flex items-center gap-4 p-4 rounded-2xl text-[10px] font-black uppercase italic transition-all ${view === 'home' ? 'bg-blue-600 text-white shadow-lg' : 'text-zinc-500 hover:bg-white/5 hover:text-white'}`}>
               <LayoutDashboard size={18}/> Paneli Kryesor
             </button>
@@ -428,6 +684,9 @@ export default function GraveyardDashboard() {
             </button>
             <button onClick={() => { setView('analytics'); setIsMobileMenuOpen(false); }} className={`w-full flex items-center gap-4 p-4 rounded-2xl text-[10px] font-black uppercase italic transition-all ${view === 'analytics' ? 'bg-blue-600 text-white shadow-lg' : 'text-zinc-500 hover:bg-white/5 hover:text-white'}`}>
               <BarChart3 size={18}/> Analitika
+            </button>
+            <button onClick={() => { setView('payments'); setIsMobileMenuOpen(false); }} className={`w-full flex items-center gap-4 p-4 rounded-2xl text-[10px] font-black uppercase italic transition-all ${view === 'payments' ? 'bg-blue-600 text-white shadow-lg' : 'text-zinc-500 hover:bg-white/5 hover:text-white'}`}>
+              <CreditCard size={18}/> Historia e Pagesave
             </button>
             <div className="pt-8 mt-8 border-t border-white/5">
               <button onClick={() => { setView('profile'); setIsMobileMenuOpen(false); }} className={`w-full flex items-center gap-4 p-4 rounded-2xl text-[10px] font-black uppercase italic transition-all ${view === 'profile' ? 'bg-blue-600 text-white shadow-lg' : 'text-zinc-500 hover:bg-white/5 hover:text-white'}`}>
@@ -490,6 +749,14 @@ export default function GraveyardDashboard() {
                     <p className="text-[10px] font-black uppercase tracking-widest text-zinc-500">Bilanci Total</p>
                   </div>
                 </div>
+
+                <div className="bg-blue-600/10 border border-blue-500/20 p-6 rounded-3xl flex items-start gap-4 mb-8">
+                  <Clock className="text-blue-500 shrink-0" size={24}/>
+                  <div>
+                    <h4 className="text-[10px] font-black uppercase text-blue-500 tracking-widest mb-1">Politika e Inventarit</h4>
+                    <p className="text-xs text-zinc-400 leading-relaxed italic">Të gjitha pjesët që nuk shiten brenda <span className="text-white font-bold">30 ditëve</span> <span className="text-red-500 font-bold uppercase underline">fshihen përgjithmonë</span> bashkë me fotot për të mbajtur sistemin të pastër.</p>
+                  </div>
+                </div>
                 <div className="flex justify-end">
                   <button onClick={() => setShowUpload(true)} className="bg-white text-black px-8 py-4 rounded-full font-black uppercase italic text-sm tracking-wider hover:bg-blue-600 hover:text-white transition-all shadow-xl flex items-center gap-3">
                     <Plus size={20} /> Shto Pjesë të Re
@@ -501,7 +768,19 @@ export default function GraveyardDashboard() {
             {/* Inventory Tab */}
             {view === 'inventory' && (
               <div className="animate-in fade-in duration-500">
-                <h2 className="text-5xl md:text-6xl font-black italic mb-8 tracking-tighter">INVENTARI IM</h2>
+                <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 mb-8">
+                  <h2 className="text-5xl md:text-6xl font-black italic tracking-tighter uppercase">INVENTARI IM</h2>
+                  <div className="relative w-full md:w-72">
+                    <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-zinc-600" size={16}/>
+                    <input 
+                      placeholder="Kërko në inventar..." 
+                      value={inventorySearch}
+                      onChange={e => setInventorySearch(e.target.value)}
+                      className="w-full bg-[#111111] border border-white/10 rounded-xl py-3 pl-12 pr-4 text-sm focus:border-blue-600/50 outline-none transition-all"
+                    />
+                  </div>
+                </div>
+
                 {myParts.length === 0 ? (
                   <div className="text-center py-20 border-2 border-dashed border-white/5 rounded-3xl">
                     <Package size={48} className="mx-auto text-zinc-800 mb-4" />
@@ -510,41 +789,72 @@ export default function GraveyardDashboard() {
                   </div>
                 ) : (
                   <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
-                    {myParts.map(part => (
-                      <div key={part.id} className="group bg-[#111111] border border-white/5 rounded-3xl overflow-hidden hover:border-blue-600/30 hover:scale-[1.02] transition-all duration-300">
+                    {myParts.filter(p => p.title.toLowerCase().includes(inventorySearch.toLowerCase()) || p.model?.toLowerCase().includes(inventorySearch.toLowerCase())).map(part => (
+                      <div key={part.id} className="group bg-[#111111] border border-white/5 rounded-3xl overflow-hidden hover:border-blue-600/30 hover:scale-[1.02] transition-all duration-300 shadow-2xl">
                         <div className="aspect-square bg-black relative overflow-hidden">
                           {part.image_url ? (
                             <img src={part.image_url} className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-500" alt={part.title} />
                           ) : (
                             <div className="w-full h-full flex items-center justify-center"><Package size={48} className="text-zinc-800" /></div>
                           )}
-                          <div className="absolute top-4 right-4 bg-blue-600 text-white px-4 py-2 rounded-2xl font-black italic text-lg shadow-lg">
+                          <div className={`absolute top-4 left-4 px-3 py-1 rounded-full text-[8px] font-black uppercase tracking-widest backdrop-blur-md border ${
+                            part.status === 'Active' ? 'bg-green-500/20 text-green-500 border-green-500/20' : 
+                            part.status === 'Sold' ? 'bg-blue-500/20 text-blue-500 border-blue-500/20' : 
+                            'bg-red-500/20 text-red-500 border-red-500/20'
+                          }`}>
+                            {part.status === 'Active' ? 'AKTIVE' : part.status === 'Sold' ? 'E SHITUR' : 'E FSHIRË / SKADUAR'}
+                          </div>
+                          <div className="absolute top-4 right-4 bg-black/50 backdrop-blur-md px-3 py-1 rounded-lg text-xs font-black italic">
                             {part.price}€
                           </div>
-                          {part.status === 'Sold' && (
-                            <div className="absolute inset-0 bg-black/60 flex items-center justify-center">
-                              <span className="bg-red-500 text-white px-6 py-2 rounded-full text-sm font-black uppercase italic">SHITUR</span>
-                            </div>
-                          )}
                         </div>
                         <div className="p-6">
-                          <h3 className="text-xl font-black italic uppercase tracking-tight">{part.title}</h3>
-                          <p className="text-[10px] text-blue-500 font-black uppercase tracking-wider mt-1">{part.model} • {part.year}</p>
-                          <p className="text-xs text-zinc-500 mt-3 line-clamp-2">{part.description?.substring(0, 100)}...</p>
-                          <div className="flex items-center gap-4 mt-4 text-[10px] text-zinc-500">
-                            <span className="flex items-center gap-1"><Eye size={12}/> {part.views || 0} shikime</span>
-                            <span className="flex items-center gap-1"><Calendar size={12}/> {new Date(part.created_at).toLocaleDateString()}</span>
-                          </div>
-                          {part.status !== 'Sold' && (
-                            <div className="flex gap-3 mt-6">
-                              <button onClick={() => confirmSale(part.id)} disabled={confirmingSale === part.id} className="flex-1 bg-green-600 hover:bg-green-500 text-white py-2 rounded-xl font-black uppercase text-[10px] flex items-center justify-center gap-2 transition-all">
-                                {confirmingSale === part.id ? <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" /> : <Check size={14}/>} Shëno të Shitur
-                              </button>
-                              <button onClick={() => deletePart(part.id)} className="bg-red-600/20 hover:bg-red-600 text-red-400 hover:text-white py-2 px-4 rounded-xl transition-all">
-                                <Trash2 size={14} />
-                              </button>
+                          <h3 className="text-lg font-black italic uppercase mb-1 line-clamp-1">{part.title}</h3>
+                          <p className="text-[10px] text-zinc-500 font-bold uppercase mb-4">{part.model} • {part.year}</p>
+                          
+                          <div className="grid grid-cols-2 gap-2 mb-6">
+                            <div className="bg-white/5 p-3 rounded-xl border border-white/5 text-center">
+                              <p className="text-[8px] text-zinc-600 font-black uppercase tracking-tighter">Shikime</p>
+                              <p className="text-lg font-black italic">{part.views || 0}</p>
                             </div>
-                          )}
+                            <div className="bg-white/5 p-3 rounded-xl border border-white/5 text-center">
+                              <p className="text-[8px] text-zinc-600 font-black uppercase tracking-tighter">Interaktimi</p>
+                              <p className="text-lg font-black italic text-green-500">{part.leads || 0}</p>
+                            </div>
+                          </div>
+
+                          <div className="flex gap-2">
+                            {part.status === 'Active' ? (
+                              <div className="flex flex-col w-full gap-3">
+                                {/* Lead Action Prompt */}
+                                {(part.leads || 0) > (part.leads_processed || 0) && (
+                                  <div className="bg-blue-600/10 border border-blue-500/20 p-4 rounded-xl animate-pulse">
+                                    <p className="text-[9px] font-black uppercase text-blue-400 mb-3 text-center tracking-widest">Keni kontakte të reja! A u shit?</p>
+                                    <div className="flex gap-2">
+                                      <button onClick={() => confirmSale(part.id)} className="flex-1 bg-green-600 py-2 rounded-lg text-[9px] font-black uppercase italic hover:bg-green-500 transition-all">PO (SHITUR)</button>
+                                      <button onClick={() => dismissLead(part.id, part.leads)} className="flex-1 bg-white/5 border border-white/10 py-2 rounded-lg text-[9px] font-black uppercase italic hover:bg-white/10 transition-all">JO</button>
+                                    </div>
+                                  </div>
+                                )}
+                                
+                                <div className="flex gap-2">
+                                  <button onClick={() => confirmSale(part.id)} className="flex-1 bg-green-600 py-3 rounded-xl text-[10px] font-black uppercase italic hover:bg-green-500 transition-all flex items-center justify-center gap-2">
+                                    {confirmingSale === part.id ? <Loader2 size={14} className="animate-spin"/> : <Check size={14}/>} SHITUR
+                                  </button>
+                                  <button onClick={() => setEditingPart(part)} className="w-12 h-12 bg-white/5 border border-white/10 rounded-xl flex items-center justify-center text-zinc-400 hover:text-white hover:bg-white/10 transition-all">
+                                    <Edit2 size={16}/>
+                                  </button>
+                                  <button onClick={() => deletePart(part.id)} className="w-12 h-12 bg-red-600/10 border border-red-500/20 rounded-xl flex items-center justify-center text-red-500 hover:bg-red-600 hover:text-white transition-all">
+                                    <Trash2 size={16}/>
+                                  </button>
+                                </div>
+                              </div>
+                            ) : (
+                              <button onClick={() => relistPart(part.id)} className="w-full bg-blue-600 py-3 rounded-xl text-[10px] font-black uppercase italic hover:bg-blue-500 transition-all flex items-center justify-center gap-2">
+                                <RefreshCw size={14}/> RI-PUBLIKO (30 DITË)
+                              </button>
+                            )}
+                          </div>
                         </div>
                       </div>
                     ))}
@@ -636,7 +946,54 @@ export default function GraveyardDashboard() {
               </div>
             )}
 
-            {/* Profile Tab */}
+            {/* Payments Tab */}
+            {view === 'payments' && (
+              <div className="animate-in fade-in duration-500">
+                <h2 className="text-5xl md:text-6xl font-black italic mb-8 tracking-tighter uppercase">HISTORIA E PAGESAVE</h2>
+                <div className="bg-[#111111] border border-white/5 p-8 rounded-3xl mb-8 flex justify-between items-center">
+                  <div>
+                    <p className="text-[10px] font-black uppercase text-zinc-500 tracking-widest">Total i Shlyer</p>
+                    <p className="text-4xl font-black italic text-green-500">{sellerData.total_paid}€</p>
+                  </div>
+                  <div className="text-right">
+                    <p className="text-[10px] font-black uppercase text-zinc-500 tracking-widest">Borxhi i Mbetur</p>
+                    <p className="text-4xl font-black italic text-red-500">{sellerData.current_debt}€</p>
+                  </div>
+                </div>
+
+                {payments.length === 0 ? (
+                  <div className="text-center py-20 border-2 border-dashed border-white/5 rounded-3xl">
+                    <CreditCard size={48} className="mx-auto text-zinc-800 mb-4" />
+                    <p className="text-zinc-500 font-black uppercase italic text-sm">Nuk keni asnjë pagesë të regjistruar ende.</p>
+                  </div>
+                ) : (
+                  <div className="bg-[#111111] border border-white/5 rounded-3xl overflow-hidden">
+                    <table className="w-full text-left font-black italic uppercase">
+                      <thead className="bg-white/5 text-[10px] text-zinc-500 tracking-wider">
+                        <tr>
+                          <th className="p-6">Data</th>
+                          <th className="p-6">Përshkrimi</th>
+                          <th className="p-6 text-center">Metoda</th>
+                          <th className="p-6 text-right">Shuma</th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-white/5">
+                        {payments.map(p => (
+                          <tr key={p.id} className="hover:bg-white/5 transition-all">
+                            <td className="p-6 text-sm text-zinc-400">{new Date(p.date).toLocaleDateString()}</td>
+                            <td className="p-6 text-sm">Pagesë Abonimi / Komisioni</td>
+                            <td className="p-6 text-center">
+                              <span className="bg-blue-500/10 text-blue-500 px-3 py-1 rounded-full text-[8px]">{p.method || 'Cash/Bank'}</span>
+                            </td>
+                            <td className="p-6 text-right text-xl text-green-500">+{p.amount}€</td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                )}
+              </div>
+            )}
             {view === 'profile' && (
               <div className="max-w-4xl animate-in slide-in-from-left-4 duration-500">
                 <h2 className="text-5xl md:text-6xl font-black italic mb-8 tracking-tighter">PROFILI I BIZNESIT</h2>
@@ -647,6 +1004,7 @@ export default function GraveyardDashboard() {
                         <div><label className="text-[10px] font-black uppercase text-zinc-500">Emri i Biznesit</label><input value={editForm.name} onChange={e=>setEditForm({...editForm, name:e.target.value})} className="w-full bg-black border border-white/10 rounded-xl p-4 text-white mt-1" /></div>
                         <div><label className="text-[10px] font-black uppercase text-zinc-500">WhatsApp/Telefon</label><input value={editForm.phone} onChange={e=>setEditForm({...editForm, phone:e.target.value})} className="w-full bg-black border border-white/10 rounded-xl p-4 text-white mt-1" /></div>
                         <div><label className="text-[10px] font-black uppercase text-zinc-500">Qyteti</label><input value={editForm.city} onChange={e=>setEditForm({...editForm, city:e.target.value})} className="w-full bg-black border border-white/10 rounded-xl p-4 text-white mt-1" /></div>
+                        <div><label className="text-[10px] font-black uppercase text-zinc-500">Adresa (E detajuar)</label><input value={editForm.address} onChange={e=>setEditForm({...editForm, address:e.target.value})} placeholder="Psh: Autostrada Tiranë-Durrës, Km 5" className="w-full bg-black border border-white/10 rounded-xl p-4 text-white mt-1" /></div>
                         <div><label className="text-[10px] font-black uppercase text-zinc-500">NIPT</label><input value={editForm.nipt} onChange={e=>setEditForm({...editForm, nipt:e.target.value})} className="w-full bg-black border border-white/10 rounded-xl p-4 text-white mt-1" /></div>
                       </div>
                       <div className="flex gap-4 pt-4"><button onClick={updateProfile} className="bg-green-600 px-8 py-3 rounded-xl font-black uppercase text-sm flex items-center gap-2"><Save size={16}/> Ruaj Ndryshimet</button><button onClick={()=>setEditMode(false)} className="bg-white/10 px-8 py-3 rounded-xl">Anulo</button></div>
@@ -658,6 +1016,7 @@ export default function GraveyardDashboard() {
                         <div><p className="text-[10px] font-black uppercase text-zinc-500">Email</p><p className="text-white">{sellerData.email}</p></div>
                         <div><p className="text-[10px] font-black uppercase text-zinc-500">WhatsApp/Telefon</p><p className="text-white">{sellerData.phone || '-'}</p></div>
                         <div><p className="text-[10px] font-black uppercase text-zinc-500">Qyteti</p><p className="text-white">{sellerData.city || '-'}</p></div>
+                        <div><p className="text-[10px] font-black uppercase text-zinc-500">Adresa</p><p className="text-white">{sellerData.address || '-'}</p></div>
                         <div><p className="text-[10px] font-black uppercase text-zinc-500">NIPT</p><p className="text-white">{sellerData.nipt || '-'}</p></div>
                       </div>
                       <div className="border-t border-white/5 pt-4">
@@ -810,6 +1169,51 @@ export default function GraveyardDashboard() {
               <button type="submit" className="w-full bg-green-600 py-4 rounded-xl font-black uppercase italic text-sm hover:bg-green-500 transition-all">
                 PUBLIKO PJESËN
               </button>
+            </form>
+          </div>
+        </div>
+      )}
+      {/* Edit Modal */}
+      {editingPart && (
+        <div className="fixed inset-0 z-100 flex items-center justify-center p-6 backdrop-blur-xl bg-black/80">
+          <div className="bg-[#0A0A0A] border border-white/10 w-full max-w-2xl rounded-3xl p-8 relative max-h-[90vh] overflow-y-auto">
+            <button onClick={() => setEditingPart(null)} className="absolute top-6 right-6 text-zinc-500 hover:text-white"><X size={24}/></button>
+            <h2 className="text-3xl font-black italic mb-6 uppercase">Ndrysho Detajet</h2>
+            <form onSubmit={handleEditPart} className="space-y-6">
+              <div className="grid grid-cols-2 gap-4">
+                <div className="col-span-2 space-y-2">
+                  <label className="text-[10px] font-black uppercase text-zinc-600 ml-1 tracking-widest">Titulli i Pjesës</label>
+                  <input placeholder="Emri i Pjesës*" value={editingPart.title} onChange={e=>setEditingPart({...editingPart, title:e.target.value})} className="w-full bg-white/5 border border-white/10 rounded-xl p-4 text-white focus:border-blue-500/50 outline-none transition-all" required />
+                </div>
+                <div className="space-y-2">
+                  <label className="text-[10px] font-black uppercase text-zinc-600 ml-1 tracking-widest">Çmimi (€)</label>
+                  <input placeholder="Çmimi (€)*" type="number" value={editingPart.price} onChange={e=>setEditingPart({...editingPart, price:e.target.value})} className="w-full bg-white/5 border border-white/10 rounded-xl p-4 text-white focus:border-blue-500/50 outline-none transition-all" required />
+                </div>
+                <div className="space-y-2">
+                  <label className="text-[10px] font-black uppercase text-zinc-600 ml-1 tracking-widest">Modeli</label>
+                  <input placeholder="Modeli" value={editingPart.model} onChange={e=>setEditingPart({...editingPart, model:e.target.value})} className="w-full bg-white/5 border border-white/10 rounded-xl p-4 text-white focus:border-blue-500/50 outline-none transition-all" />
+                </div>
+                <div className="space-y-2">
+                  <label className="text-[10px] font-black uppercase text-zinc-600 ml-1 tracking-widest">Viti</label>
+                  <input placeholder="Viti" value={editingPart.year} onChange={e=>setEditingPart({...editingPart, year:e.target.value})} className="w-full bg-white/5 border border-white/10 rounded-xl p-4 text-white focus:border-blue-500/50 outline-none transition-all" />
+                </div>
+                <div className="space-y-2">
+                  <label className="text-[10px] font-black uppercase text-zinc-600 ml-1 tracking-widest">Kategoria</label>
+                  <input placeholder="Kategoria" value={editingPart.category} onChange={e=>setEditingPart({...editingPart, category:e.target.value})} className="w-full bg-white/5 border border-white/10 rounded-xl p-4 text-white focus:border-blue-500/50 outline-none transition-all" />
+                </div>
+                <div className="col-span-2 space-y-2">
+                  <label className="text-[10px] font-black uppercase text-zinc-600 ml-1 tracking-widest">Përshkrimi</label>
+                  <textarea placeholder="Përshkrimi" rows={4} value={editingPart.description} onChange={e=>setEditingPart({...editingPart, description:e.target.value})} className="w-full bg-white/5 border border-white/10 rounded-xl p-4 text-white resize-none focus:border-blue-500/50 outline-none transition-all" />
+                </div>
+              </div>
+              <div className="flex gap-4">
+                <button type="submit" className="flex-1 bg-blue-600 py-4 rounded-xl font-black uppercase italic text-sm hover:bg-blue-500 transition-all shadow-lg shadow-blue-600/20">
+                  RUAJ NDRYSHIMET
+                </button>
+                <button type="button" onClick={() => setEditingPart(null)} className="px-8 bg-white/5 py-4 rounded-xl font-black uppercase italic text-sm hover:bg-white/10 transition-all">
+                  ANULO
+                </button>
+              </div>
             </form>
           </div>
         </div>

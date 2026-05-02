@@ -1,7 +1,7 @@
 export const dynamic = 'force-dynamic';
 
 export const metadata = {
-  title: 'Kërko Pjesë Këmbimi | Auto Forms Shqipëri',
+  title: 'Kërko Pjesë Këmbimi',
   description: 'Gjeni pjesë këmbimi origjinale dhe alternative në të gjithë Shqipërinë. Filtro sipas markës, modelit, çmimit dhe qytetit.',
 };
 
