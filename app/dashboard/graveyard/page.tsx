@@ -7,7 +7,7 @@ import {
   ShieldCheck, User, FileDown, LogOut, CheckCircle2, PieChart, 
   AlertTriangle, Edit2, Save, TrendingUp, DollarSign, Eye, Trash2,
   Check, MessageCircle, Phone, MapPin, Calendar, BarChart3, Clock,
-  Award, FileText, Loader2, CreditCard, Key, AlertCircle, Building, Menu, Search, Bell, BellRing, RefreshCw
+  Award, FileText, Loader2, CreditCard, Key, AlertCircle, Building, Menu, Search, Bell, BellRing, RefreshCw, MessageSquare
 } from 'lucide-react';
 import {
   LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip,
@@ -15,12 +15,15 @@ import {
 } from "recharts";
 import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
+import Papa from 'papaparse';
+import Image from 'next/image';
+import { Part, Notification, Payment, User as UserType, BuyerLead } from '@/types';
 
 const MONTHLY_FEE = 50;
 
 export default function GraveyardDashboard() {
   const router = useRouter();
-  const [view, setView] = useState<'home' | 'inventory' | 'sales' | 'profile' | 'security' | 'analytics' | 'payments'>('home');
+  const [view, setView] = useState<'home' | 'inventory' | 'sales' | 'profile' | 'security' | 'analytics' | 'payments' | 'leads'>('home');
   const [showUpload, setShowUpload] = useState(false);
   const [loading, setLoading] = useState(true);
   const [userId, setUserId] = useState<string | null>(null);
@@ -33,19 +36,20 @@ export default function GraveyardDashboard() {
     business_license: '', license_verified: false,
     last_payment_date: '', join_date: ''
   });
-  const [myParts, setMyParts] = useState<any[]>([]);
+  const [myParts, setMyParts] = useState<Part[]>([]);
   const [previewUrl, setPreviewUrl] = useState<string | null>(null);
   const [newPart, setNewPart] = useState({ 
-    title: '', model: '', year: '', price: '', description: '', category: '' 
+    title: '', price: '', model: '', year: '', category: '', description: '', oem_number: '', condition: 'E Përdorur', quantity: '1' 
   });
-  const [sales, setSales] = useState<any[]>([]);
-  const [payments, setPayments] = useState<any[]>([]);
+  const [sales, setSales] = useState<Part[]>([]);
+  const [payments, setPayments] = useState<Payment[]>([]);
   const [editMode, setEditMode] = useState(false);
   const [editForm, setEditForm] = useState({ name: '', phone: '', city: '', address: '', nipt: '' });
   const [confirmingSale, setConfirmingSale] = useState<string | null>(null);
   const [uploadingLicense, setUploadingLicense] = useState(false);
   const [inventorySearch, setInventorySearch] = useState('');
-  const [editingPart, setEditingPart] = useState<any | null>(null);
+  const [editingPart, setEditingPart] = useState<Part | null>(null);
+  const [buyerLeads, setBuyerLeads] = useState<BuyerLead[]>([]);
   
   // Password change state
   const [showPasswordModal, setShowPasswordModal] = useState(false);
@@ -59,11 +63,22 @@ export default function GraveyardDashboard() {
   const [showDeleteModal, setShowDeleteModal] = useState(false);
   const [deleteConfirmText, setDeleteConfirmText] = useState('');
   const [deletingAccount, setDeletingAccount] = useState(false);
+
+  const [toast, setToast] = useState<{message: string, type: "success" | "error"} | null>(null);
+
+  const showToast = (message: string, type: "success" | "error" = "success") => {
+    setToast({ message, type });
+    setTimeout(() => setToast(null), 3000);
+  };
+
+  // Bulk upload
+  const bulkUploadFileRef = useRef<HTMLInputElement>(null);
+  const [isBulkUploading, setIsBulkUploading] = useState(false);
   
   // Payment method placeholder
   const [showPaymentModal, setShowPaymentModal] = useState(false);
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
-  const [notifications, setNotifications] = useState<any[]>([]);
+  const [notifications, setNotifications] = useState<Notification[]>([]);
   const [showNotifications, setShowNotifications] = useState(false);
   const unreadCount = notifications.filter(n => !n.is_read).length;
 
@@ -75,6 +90,7 @@ export default function GraveyardDashboard() {
       await fetchSellerData(user.id);
       await fetchParts(user.id);
       await fetchSales(user.id);
+      await fetchBuyerLeads(user.id);
       await fetchPayments(user.id);
       await fetchNotifications(user.id);
       setLoading(false);
@@ -131,14 +147,23 @@ export default function GraveyardDashboard() {
     }
   }
 
-  async function fetchSales(uid: string) {
+  const fetchSales = async (id: string) => {
     const { data } = await supabase
       .from('parts')
-      .select('id, title, price, created_at')
-      .eq('seller_id', uid)
+      .select('*')
+      .eq('seller_id', id)
       .eq('status', 'Sold');
-    if (data) setSales(data.map(p => ({ ...p, date: p.created_at.split('T')[0] })));
-  }
+    if (data) setSales(data.map(p => ({ ...p, date: p.created_at.split('T')[0] })) as Part[]);
+  };
+
+  const fetchBuyerLeads = async (id: string) => {
+    const { data } = await supabase
+      .from('buyer_leads')
+      .select('*, parts(*), users!buyer_leads_buyer_id_fkey(name, phone, whatsapp)')
+      .eq('seller_id', id)
+      .order('created_at', { ascending: false });
+    if (data) setBuyerLeads(data as any[]);
+  };
 
   async function fetchPayments(uid: string) {
     const { data } = await supabase
@@ -192,16 +217,6 @@ export default function GraveyardDashboard() {
   const totalBalance = sales.reduce((acc, s) => acc + (s.price - 1 - (s.price * 0.03)), 0);
   const totalViews = myParts.reduce((acc, p) => acc + (p.views || 0), 0);
 
-  const viewsPerPart = myParts.filter(p => p.status !== 'Deleted').map(p => ({
-    name: p.title.substring(0, 15),
-    views: p.views || 0,
-    price: p.price
-  }));
-  const salesOverTime = sales.map(s => ({
-    date: s.date,
-    amount: s.price
-  })).reverse();
-
   const generatePDF = () => {
     const doc = new jsPDF();
     const companyName = sellerData.name || 'Graveyard';
@@ -215,7 +230,7 @@ export default function GraveyardDashboard() {
     
     const tableData = sales.map(s => [
       s.title,
-      s.date,
+      s.date || '',
       `${s.price}€`,
       `${(s.price * 0.03).toFixed(2)}€`
     ]);
@@ -247,7 +262,7 @@ export default function GraveyardDashboard() {
     const confirmPost = window.confirm(`A jeni i sigurt që dëshironi të publikoni këtë pjesë?\n\nEmri: ${newPart.title}\nÇmimi: ${newPart.price}€`);
     if (!confirmPost) return;
 
-    let imageUrl = null;
+    let uploadedImageUrl = null;
     if (previewUrl) {
       const response = await fetch(previewUrl);
       const blob = await response.blob();
@@ -259,7 +274,7 @@ export default function GraveyardDashboard() {
         alert("Gabim gjatë ngarkimit të fotos.");
         return;
       }
-      imageUrl = supabase.storage.from('parts').getPublicUrl(fileName).data.publicUrl;
+      uploadedImageUrl = supabase.storage.from('parts').getPublicUrl(fileName).data.publicUrl;
     }
 
     const { error } = await supabase.from('parts').insert({
@@ -270,7 +285,10 @@ export default function GraveyardDashboard() {
       year: newPart.year,
       category: newPart.category,
       description: newPart.description,
-      image_url: imageUrl,
+      oem_number: newPart.oem_number,
+      condition: newPart.condition,
+      quantity: parseInt(newPart.quantity) || 1,
+      image_url: uploadedImageUrl,
       status: 'Active',
       views: 0
     });
@@ -280,7 +298,7 @@ export default function GraveyardDashboard() {
       await fetchParts(userId!);
       setShowUpload(false);
       setPreviewUrl(null);
-      setNewPart({ title: '', model: '', year: '', price: '', description: '', category: '' });
+      setNewPart({ title: '', price: '', model: '', year: '', category: '', description: '', oem_number: '', condition: 'E Përdorur', quantity: '1' });
       alert("Pjesa u publikua me sukses!");
     }
   };
@@ -292,6 +310,57 @@ export default function GraveyardDashboard() {
       reader.onloadend = () => setPreviewUrl(reader.result as string);
       reader.readAsDataURL(file);
     }
+  };
+
+  const handleBulkUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    setIsBulkUploading(true);
+    Papa.parse(file, {
+      header: true,
+      skipEmptyLines: true,
+      complete: async (results) => {
+        const parts = results.data.map((row: any) => ({
+          seller_id: userId,
+          title: row.title || row.emri || 'Pjesë e panjohur',
+          price: parseFloat(row.price || row.cmimi) || 0,
+          model: row.model || row.modeli || '',
+          year: parseInt(row.year || row.viti) || new Date().getFullYear(),
+          category: row.category || row.kategoria || '',
+          description: row.description || row.pershkrimi || '',
+          oem_number: row.oem_number || row.oem || '',
+          condition: row.condition || row.gjendja || 'E Përdorur',
+          quantity: parseInt(row.quantity || row.sasia) || 1,
+          status: 'Active',
+          views: 0
+        }));
+
+        if (parts.length === 0) {
+          showToast('Skedari është bosh ose ka format të gabuar.', 'error');
+          setIsBulkUploading(false);
+          return;
+        }
+
+        const { error } = await supabase.from('parts').insert(parts);
+        
+        if (error) {
+          console.error(error);
+          showToast('Pati një gabim gjatë ngarkimit të pjesëve.', 'error');
+        } else {
+          showToast(`${parts.length} pjesë u ngarkuan me sukses!`);
+          await fetchParts(userId!);
+        }
+        
+        setIsBulkUploading(false);
+        if (bulkUploadFileRef.current) bulkUploadFileRef.current.value = '';
+      },
+      error: (error: any) => {
+        console.error("PapaParse error:", error);
+        showToast('Gabim gjatë leximit të skedarit CSV.', 'error');
+        setIsBulkUploading(false);
+      }
+    });
   };
 
   const handleLicenseUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -359,9 +428,9 @@ export default function GraveyardDashboard() {
 
       await fetchParts(userId!);
       await fetchSales(userId!);
-      alert(`Pjesa u shënua si e shitur! Komisioni prej ${commission.toFixed(2)}€ u shtua në borxhin tuaj.`);
+      showToast(`Pjesa u shënua si e shitur! Komisioni prej ${commission.toFixed(2)}€ u shtua në borxhin tuaj.`);
     } else {
-      alert("Gabim gjatë shënimit të shitjes.");
+      showToast("Gabim gjatë shënimit të shitjes.", "error");
     }
     setConfirmingSale(null);
   };
@@ -386,9 +455,9 @@ export default function GraveyardDashboard() {
 
       if (!error) {
         await fetchParts(userId!);
-        alert("Pjesa u fshi përgjithmonë bashkë me foton.");
+        showToast("Pjesa u fshi përgjithmonë bashkë me foton.");
       } else {
-        alert("Gabim gjatë fshirjes.");
+        showToast("Gabim gjatë fshirjes.", "error");
       }
     }
   };
@@ -400,9 +469,9 @@ export default function GraveyardDashboard() {
       .eq('id', partId);
     if (!error) {
       await fetchParts(userId!);
-      alert("Pjesa u ri-publikua me sukses!");
+      showToast("Pjesa u ri-publikua me sukses!");
     } else {
-      alert("Gabim gjatë ri-publikimit.");
+      showToast("Gabim gjatë ri-publikimit.", "error");
     }
   };
 
@@ -418,17 +487,20 @@ export default function GraveyardDashboard() {
 
   const handleEditPart = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!editingPart.title || !editingPart.price) return alert("Plotësoni të dhënat!");
+    if (!editingPart || !editingPart.title || !editingPart.price) return alert("Plotësoni të dhënat!");
     
     const { error } = await supabase
       .from('parts')
       .update({
         title: editingPart.title,
-        price: parseFloat(editingPart.price),
+        price: typeof editingPart.price === 'string' ? parseFloat(editingPart.price) : editingPart.price,
         model: editingPart.model,
         year: editingPart.year,
         category: editingPart.category,
-        description: editingPart.description
+        description: editingPart.description,
+        oem_number: editingPart.oem_number,
+        condition: editingPart.condition,
+        quantity: typeof editingPart.quantity === 'string' ? parseInt(editingPart.quantity) : editingPart.quantity
       })
       .eq('id', editingPart.id);
 
@@ -510,6 +582,22 @@ export default function GraveyardDashboard() {
     }
   };
 
+  const viewsPerPart = useMemo(() => {
+    return myParts.map(p => ({
+      name: p.title.substring(0, 15) + '...',
+      views: p.views || 0
+    })).sort((a, b) => b.views - a.views).slice(0, 5);
+  }, [myParts]);
+
+  const salesOverTime = useMemo(() => {
+    const grouped = sales.reduce((acc, s) => {
+      const d = new Date(s.date || s.created_at).toLocaleDateString();
+      acc[d] = (acc[d] || 0) + s.price;
+      return acc;
+    }, {} as Record<string, number>);
+    return Object.entries(grouped).map(([date, amount]) => ({ date, amount }));
+  }, [sales]);
+
   if (loading) return <div className="min-h-screen bg-black flex items-center justify-center text-blue-500">Duke ngarkuar...</div>;
 
   const isVerified = sellerData.license_verified;
@@ -565,6 +653,15 @@ export default function GraveyardDashboard() {
 
   return (
     <div className="min-h-screen bg-[#050505] text-white flex flex-col font-sans">
+      {/* Toast */}
+      {toast && (
+        <div className={`fixed bottom-4 right-4 p-4 rounded-xl shadow-2xl z-[100] border backdrop-blur-xl transition-all ${
+          toast.type === 'success' ? 'bg-emerald-500/10 border-emerald-500/20 text-emerald-500' : 'bg-red-500/10 border-red-500/20 text-red-500'
+        }`}>
+          <p className="font-bold text-sm">{toast.message}</p>
+        </div>
+      )}
+
       <div className="flex flex-1 flex-col lg:flex-row">
         {/* Mobile Header */}
         <div className="lg:hidden flex items-center justify-between p-4 bg-[#0A0A0A] border-b border-white/5 sticky top-0 z-50">
@@ -635,7 +732,6 @@ export default function GraveyardDashboard() {
             </div>
           </div>
           <nav className="flex-1 p-6 space-y-2 overflow-y-auto">
-            {/* Notification Nav Item */}
             <div className="relative mb-4">
               <button 
                 onClick={() => { setShowNotifications(!showNotifications); markNotificationsAsRead(); }}
@@ -647,7 +743,6 @@ export default function GraveyardDashboard() {
                 </div>
                 {unreadCount > 0 && <span className="bg-red-600 px-2 py-0.5 rounded-full text-[9px] font-black text-white">{unreadCount}</span>}
               </button>
-
               {showNotifications && (
                 <div className="absolute left-full ml-4 top-0 w-80 bg-[#0A0A0A] border border-white/10 rounded-2xl shadow-2xl z-50 overflow-hidden animate-in slide-in-from-left-2 duration-300">
                   <div className="p-4 border-b border-white/5 bg-white/[0.02] flex justify-between items-center">
@@ -675,6 +770,12 @@ export default function GraveyardDashboard() {
             </button>
             <button onClick={() => { setView('inventory'); setIsMobileMenuOpen(false); }} className={`w-full flex items-center gap-4 p-4 rounded-2xl text-[10px] font-black uppercase italic transition-all ${view === 'inventory' ? 'bg-blue-600 text-white shadow-lg' : 'text-zinc-500 hover:bg-white/5 hover:text-white'}`}>
               <Package size={18}/> Inventari Im
+            </button>
+            <button onClick={() => { setView('leads'); setIsMobileMenuOpen(false); }} className={`w-full flex items-center gap-4 p-4 rounded-2xl text-[10px] font-black uppercase italic transition-all ${view === 'leads' ? 'bg-blue-600 text-white shadow-lg' : 'text-zinc-500 hover:bg-white/5 hover:text-white'}`}>
+              <MessageSquare size={18}/> Kërkesat
+              {buyerLeads.filter(l => l.status === 'contacted').length > 0 && (
+                <span className="ml-auto bg-yellow-500 text-black px-2 py-0.5 rounded-full text-[9px] font-black">{buyerLeads.filter(l => l.status === 'contacted').length}</span>
+              )}
             </button>
             <button onClick={() => { setView('sales'); setIsMobileMenuOpen(false); }} className={`w-full flex items-center gap-4 p-4 rounded-2xl text-[10px] font-black uppercase italic transition-all ${view === 'sales' ? 'bg-blue-600 text-white shadow-lg' : 'text-zinc-500 hover:bg-white/5 hover:text-white'}`}>
               <History size={18}/> Regjistri Shitjeve
@@ -711,6 +812,52 @@ export default function GraveyardDashboard() {
 
         <main className="flex-1 overflow-x-hidden">
           <div className="p-4 md:p-10 pb-20">
+            {/* LEADS VIEW */}
+            {view === 'leads' && (
+              <div className="space-y-6 animate-in fade-in duration-500">
+                <h2 className="text-3xl font-black italic uppercase tracking-tighter text-yellow-500">Kërkesat nga Blerësit</h2>
+                <div className="bg-[#0A0A0A] border border-white/5 rounded-3xl p-6 overflow-hidden">
+                  <table className="w-full text-left">
+                    <thead className="bg-white/5 text-[10px] font-black uppercase tracking-widest text-zinc-500">
+                      <tr>
+                        <th className="py-4 px-6">Pjesa</th>
+                        <th className="py-4 px-6">Blerësi</th>
+                        <th className="py-4 px-6">Data</th>
+                        <th className="py-4 px-6">Veprimi</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-white/5">
+                      {buyerLeads.filter(l => l.status === 'contacted').map(lead => (
+                        <tr key={lead.id} className="hover:bg-white/[0.02]">
+                          <td className="py-4 px-6 font-bold">{lead.parts?.title}</td>
+                          <td className="py-4 px-6 text-sm">{lead.users?.name || lead.users?.phone}</td>
+                          <td className="py-4 px-6 text-zinc-400 text-sm">{new Date(lead.created_at).toLocaleDateString('sq-AL')}</td>
+                          <td className="py-4 px-6">
+                            <div className="flex gap-2">
+                              <button 
+                                onClick={async () => {
+                                  await supabase.from('buyer_leads').update({ status: 'sold' }).eq('id', lead.id);
+                                  confirmSale(lead.part_id); 
+                                }}
+                                className="bg-emerald-600/10 text-emerald-500 px-3 py-1.5 rounded-lg text-[9px] font-black uppercase tracking-widest hover:bg-emerald-600/20"
+                              >
+                                Shitur Këtij
+                              </button>
+                            </div>
+                          </td>
+                        </tr>
+                      ))}
+                      {buyerLeads.filter(l => l.status === 'contacted').length === 0 && (
+                        <tr>
+                          <td colSpan={4} className="py-8 text-center text-zinc-500">Nuk keni kërkesa të reja.</td>
+                        </tr>
+                      )}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            )}
+
             {/* Home Tab */}
             {view === 'home' && (
               <div className="animate-in fade-in slide-in-from-bottom-4 duration-500">
@@ -754,7 +901,11 @@ export default function GraveyardDashboard() {
                     <p className="text-xs text-zinc-400 leading-relaxed italic">Të gjitha pjesët që nuk shiten brenda <span className="text-white font-bold">30 ditëve</span> <span className="text-red-500 font-bold uppercase underline">fshihen përgjithmonë</span> bashkë me fotot për të mbajtur sistemin të pastër.</p>
                   </div>
                 </div>
-                <div className="flex justify-end">
+                <div className="flex justify-end gap-4">
+                  <button onClick={() => bulkUploadFileRef.current?.click()} disabled={isBulkUploading} className="bg-white/10 text-white px-8 py-4 rounded-full font-black uppercase italic text-sm tracking-wider hover:bg-white/20 transition-all shadow-xl flex items-center gap-3">
+                    {isBulkUploading ? <Loader2 className="animate-spin" size={20} /> : <FileDown size={20} />} Ngarko CSV (Bulk)
+                  </button>
+                  <input type="file" accept=".csv" ref={bulkUploadFileRef} onChange={handleBulkUpload} className="hidden" />
                   <button onClick={() => setShowUpload(true)} className="bg-white text-black px-8 py-4 rounded-full font-black uppercase italic text-sm tracking-wider hover:bg-blue-600 hover:text-white transition-all shadow-xl flex items-center gap-3">
                     <Plus size={20} /> Shto Pjesë të Re
                   </button>
@@ -766,15 +917,22 @@ export default function GraveyardDashboard() {
             {view === 'inventory' && (
               <div className="animate-in fade-in duration-500">
                 <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 mb-8">
-                  <h2 className="text-5xl md:text-6xl font-black italic tracking-tighter uppercase">INVENTARI IM</h2>
-                  <div className="relative w-full md:w-72">
-                    <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-zinc-600" size={16}/>
-                    <input 
-                      placeholder="Kërko në inventar..." 
-                      value={inventorySearch}
-                      onChange={e => setInventorySearch(e.target.value)}
-                      className="w-full bg-[#111111] border border-white/10 rounded-xl py-3 pl-12 pr-4 text-sm focus:border-blue-600/50 outline-none transition-all"
-                    />
+                  <div className="flex items-center gap-4">
+                    <h2 className="text-5xl md:text-6xl font-black italic tracking-tighter uppercase">INVENTARI IM</h2>
+                  </div>
+                  <div className="flex items-center gap-4 w-full md:w-auto">
+                    <button onClick={() => bulkUploadFileRef.current?.click()} disabled={isBulkUploading} className="bg-white/10 text-white p-3 rounded-xl hover:bg-white/20 transition-all">
+                      {isBulkUploading ? <Loader2 className="animate-spin" size={20} /> : <FileDown size={20} />}
+                    </button>
+                    <div className="relative w-full md:w-72">
+                      <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-zinc-600" size={16}/>
+                      <input 
+                        placeholder="Kërko në inventar..." 
+                        value={inventorySearch}
+                        onChange={e => setInventorySearch(e.target.value)}
+                        className="w-full bg-[#111111] border border-white/10 rounded-xl py-3 pl-12 pr-4 text-sm focus:border-blue-600/50 outline-none transition-all"
+                      />
+                    </div>
                   </div>
                 </div>
 
@@ -790,7 +948,7 @@ export default function GraveyardDashboard() {
                       <div key={part.id} className="group bg-[#111111] border border-white/5 rounded-3xl overflow-hidden hover:border-blue-600/30 hover:scale-[1.02] transition-all duration-300 shadow-2xl">
                         <div className="aspect-square bg-black relative overflow-hidden">
                           {part.image_url ? (
-                            <img src={part.image_url} className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-500" alt={part.title} />
+                            <Image src={part.image_url} fill sizes="(max-width: 768px) 100vw, 33vw" className="object-cover group-hover:scale-110 transition-transform duration-500" alt={part.title} />
                           ) : (
                             <div className="w-full h-full flex items-center justify-center"><Package size={48} className="text-zinc-800" /></div>
                           )}
@@ -807,8 +965,12 @@ export default function GraveyardDashboard() {
                         </div>
                         <div className="p-6">
                           <h3 className="text-lg font-black italic uppercase mb-1 line-clamp-1">{part.title}</h3>
-                          <p className="text-[10px] text-zinc-500 font-bold uppercase mb-4">{part.model} • {part.year}</p>
-                          
+                          <p className="text-[10px] text-zinc-500 font-bold uppercase mb-2">{part.model} • {part.year}</p>
+                          <div className="flex flex-wrap gap-2 mb-4">
+                            {part.oem_number && <span className="bg-white/5 border border-white/10 px-2 py-1 rounded text-[9px] text-zinc-300 font-bold">OEM: {part.oem_number}</span>}
+                            <span className="bg-white/5 border border-white/10 px-2 py-1 rounded text-[9px] text-zinc-300 font-bold">GJENDJA: {part.condition || 'E Përdorur'}</span>
+                            <span className={`px-2 py-1 rounded text-[9px] font-bold ${part.quantity && part.quantity > 0 ? 'bg-blue-500/20 text-blue-400 border border-blue-500/20' : 'bg-red-500/20 text-red-400 border border-red-500/20'}`}>Sasi: {part.quantity || 0}</span>
+                          </div>
                           <div className="grid grid-cols-2 gap-2 mb-6">
                             <div className="bg-white/5 p-3 rounded-xl border border-white/5 text-center">
                               <p className="text-[8px] text-zinc-600 font-black uppercase tracking-tighter">Shikime</p>
@@ -829,7 +991,7 @@ export default function GraveyardDashboard() {
                                     <p className="text-[9px] font-black uppercase text-blue-400 mb-3 text-center tracking-widest">Keni kontakte të reja! A u shit?</p>
                                     <div className="flex gap-2">
                                       <button onClick={() => confirmSale(part.id)} className="flex-1 bg-green-600 py-2 rounded-lg text-[9px] font-black uppercase italic hover:bg-green-500 transition-all">PO (SHITUR)</button>
-                                      <button onClick={() => dismissLead(part.id, part.leads)} className="flex-1 bg-white/5 border border-white/10 py-2 rounded-lg text-[9px] font-black uppercase italic hover:bg-white/10 transition-all">JO</button>
+                                      <button onClick={() => dismissLead(part.id, part.leads || 0)} className="flex-1 bg-white/5 border border-white/10 py-2 rounded-lg text-[9px] font-black uppercase italic hover:bg-white/10 transition-all">JO</button>
                                     </div>
                                   </div>
                                 )}
@@ -977,7 +1139,7 @@ export default function GraveyardDashboard() {
                       <tbody className="divide-y divide-white/5">
                         {payments.map(p => (
                           <tr key={p.id} className="hover:bg-white/5 transition-all">
-                            <td className="p-6 text-sm text-zinc-400">{new Date(p.date).toLocaleDateString()}</td>
+                            <td className="p-6 text-sm text-zinc-400">{new Date(p.date || p.created_at).toLocaleDateString()}</td>
                             <td className="p-6 text-sm">Pagesë Abonimi / Komisioni</td>
                             <td className="p-6 text-center">
                               <span className="bg-blue-500/10 text-blue-500 px-3 py-1 rounded-full text-[8px]">{p.method || 'Cash/Bank'}</span>
@@ -1151,16 +1313,23 @@ export default function GraveyardDashboard() {
             <button onClick={() => setShowUpload(false)} className="absolute top-6 right-6 text-zinc-500 hover:text-white"><X size={24}/></button>
             <h2 className="text-3xl font-black italic mb-6">Shto Pjesë të Re</h2>
             <form onSubmit={handleUpload} className="space-y-6">
-              <div onClick={() => fileInputRef.current?.click()} className="w-full h-48 border-2 border-dashed border-white/10 rounded-2xl flex flex-col items-center justify-center cursor-pointer hover:border-blue-600/50 transition-all">
-                {previewUrl ? <img src={previewUrl} className="w-full h-full object-cover rounded-2xl" /> : <><Upload size={32} className="text-zinc-600"/><p className="text-[10px] mt-2">Kliko për të ngarkuar foton</p></>}
+              <div onClick={() => fileInputRef.current?.click()} className="w-full h-48 relative overflow-hidden border-2 border-dashed border-white/10 rounded-2xl flex flex-col items-center justify-center cursor-pointer hover:border-blue-600/50 transition-all">
+                {previewUrl ? <Image src={previewUrl} fill sizes="300px" className="object-cover rounded-2xl" alt="Preview" /> : <><Upload size={32} className="text-zinc-600"/><p className="text-[10px] mt-2">Kliko për të ngarkuar foton</p></>}
               </div>
               <input type="file" ref={fileInputRef} onChange={handleFileSelect} className="hidden" accept="image/*" />
               <div className="grid grid-cols-2 gap-4">
                 <input placeholder="Emri i Pjesës*" value={newPart.title} onChange={e=>setNewPart({...newPart, title:e.target.value})} className="bg-white/5 border border-white/10 rounded-xl p-4 text-white" required />
                 <input placeholder="Çmimi (€)*" type="number" value={newPart.price} onChange={e=>setNewPart({...newPart, price:e.target.value})} className="bg-white/5 border border-white/10 rounded-xl p-4 text-white" required />
+                <input placeholder="Numri OEM" value={newPart.oem_number} onChange={e=>setNewPart({...newPart, oem_number:e.target.value})} className="bg-white/5 border border-white/10 rounded-xl p-4 text-white" />
+                <input placeholder="Sasia" type="number" min="1" value={newPart.quantity} onChange={e=>setNewPart({...newPart, quantity:e.target.value})} className="bg-white/5 border border-white/10 rounded-xl p-4 text-white" />
+                <select value={newPart.condition} onChange={e=>setNewPart({...newPart, condition:e.target.value})} className="bg-[#111] border border-white/10 rounded-xl p-4 text-white">
+                  <option value="E Përdorur">E Përdorur</option>
+                  <option value="E Re">E Re</option>
+                  <option value="Për Pjesë">Për Pjesë (Me Defekt)</option>
+                </select>
                 <input placeholder="Modeli" value={newPart.model} onChange={e=>setNewPart({...newPart, model:e.target.value})} className="bg-white/5 border border-white/10 rounded-xl p-4 text-white" />
                 <input placeholder="Viti" value={newPart.year} onChange={e=>setNewPart({...newPart, year:e.target.value})} className="bg-white/5 border border-white/10 rounded-xl p-4 text-white" />
-                <input placeholder="Kategoria" value={newPart.category} onChange={e=>setNewPart({...newPart, category:e.target.value})} className="col-span-2 bg-white/5 border border-white/10 rounded-xl p-4 text-white" />
+                <input placeholder="Kategoria" value={newPart.category} onChange={e=>setNewPart({...newPart, category:e.target.value})} className="bg-white/5 border border-white/10 rounded-xl p-4 text-white" />
                 <textarea placeholder="Përshkrimi" rows={3} value={newPart.description} onChange={e=>setNewPart({...newPart, description:e.target.value})} className="col-span-2 bg-white/5 border border-white/10 rounded-xl p-4 text-white resize-none" />
               </div>
               <button type="submit" className="w-full bg-green-600 py-4 rounded-xl font-black uppercase italic text-sm hover:bg-green-500 transition-all">
@@ -1184,7 +1353,23 @@ export default function GraveyardDashboard() {
                 </div>
                 <div className="space-y-2">
                   <label className="text-[10px] font-black uppercase text-zinc-600 ml-1 tracking-widest">Çmimi (€)</label>
-                  <input placeholder="Çmimi (€)*" type="number" value={editingPart.price} onChange={e=>setEditingPart({...editingPart, price:e.target.value})} className="w-full bg-white/5 border border-white/10 rounded-xl p-4 text-white focus:border-blue-500/50 outline-none transition-all" required />
+                  <input placeholder="Çmimi (€)*" type="number" value={editingPart.price} onChange={e=>setEditingPart({...editingPart, price: parseFloat(e.target.value) || 0})} className="w-full bg-white/5 border border-white/10 rounded-xl p-4 text-white focus:border-blue-500/50 outline-none transition-all" required />
+                </div>
+                <div className="space-y-2">
+                  <label className="text-[10px] font-black uppercase text-zinc-600 ml-1 tracking-widest">Numri OEM</label>
+                  <input placeholder="Numri OEM" value={editingPart.oem_number || ''} onChange={e=>setEditingPart({...editingPart, oem_number: e.target.value})} className="w-full bg-white/5 border border-white/10 rounded-xl p-4 text-white focus:border-blue-500/50 outline-none transition-all" />
+                </div>
+                <div className="space-y-2">
+                  <label className="text-[10px] font-black uppercase text-zinc-600 ml-1 tracking-widest">Sasia</label>
+                  <input placeholder="Sasia" type="number" min="1" value={editingPart.quantity || 1} onChange={e=>setEditingPart({...editingPart, quantity: parseInt(e.target.value) || 1})} className="w-full bg-white/5 border border-white/10 rounded-xl p-4 text-white focus:border-blue-500/50 outline-none transition-all" />
+                </div>
+                <div className="space-y-2">
+                  <label className="text-[10px] font-black uppercase text-zinc-600 ml-1 tracking-widest">Gjendja</label>
+                  <select value={editingPart.condition || 'E Përdorur'} onChange={e=>setEditingPart({...editingPart, condition: e.target.value})} className="w-full bg-[#111] border border-white/10 rounded-xl p-4 text-white focus:border-blue-500/50 outline-none transition-all">
+                    <option value="E Përdorur">E Përdorur</option>
+                    <option value="E Re">E Re</option>
+                    <option value="Për Pjesë">Për Pjesë (Me Defekt)</option>
+                  </select>
                 </div>
                 <div className="space-y-2">
                   <label className="text-[10px] font-black uppercase text-zinc-600 ml-1 tracking-widest">Modeli</label>
@@ -1192,7 +1377,7 @@ export default function GraveyardDashboard() {
                 </div>
                 <div className="space-y-2">
                   <label className="text-[10px] font-black uppercase text-zinc-600 ml-1 tracking-widest">Viti</label>
-                  <input placeholder="Viti" value={editingPart.year} onChange={e=>setEditingPart({...editingPart, year:e.target.value})} className="w-full bg-white/5 border border-white/10 rounded-xl p-4 text-white focus:border-blue-500/50 outline-none transition-all" />
+                  <input placeholder="Viti" value={editingPart.year} onChange={e=>setEditingPart({...editingPart, year: parseInt(e.target.value) || 0})} className="w-full bg-white/5 border border-white/10 rounded-xl p-4 text-white focus:border-blue-500/50 outline-none transition-all" />
                 </div>
                 <div className="space-y-2">
                   <label className="text-[10px] font-black uppercase text-zinc-600 ml-1 tracking-widest">Kategoria</label>

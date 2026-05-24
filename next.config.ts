@@ -1,9 +1,15 @@
 import type { NextConfig } from 'next';
+import withPWAInit from "@ducanh2912/next-pwa";
+
+const withPWA = withPWAInit({
+  dest: "public",
+  disable: process.env.NODE_ENV === "development",
+  register: true,
+});
 
 const nextConfig: NextConfig = {
   reactStrictMode: true,
   async headers() {
-    // Only apply in development – you can remove this for production
     if (process.env.NODE_ENV === 'development') {
       return [
         {
@@ -25,6 +31,18 @@ const nextConfig: NextConfig = {
     }
     return [];
   },
+  images: {
+    remotePatterns: [
+      {
+        protocol: 'https',
+        hostname: 'zexvczovzltylsqttmlr.supabase.co',
+      },
+      {
+        protocol: 'https',
+        hostname: 'images.unsplash.com',
+      }
+    ],
+  },
 };
 
-export default nextConfig;
+export default withPWA(nextConfig);

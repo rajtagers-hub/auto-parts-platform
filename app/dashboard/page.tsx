@@ -34,6 +34,8 @@ export default function DashboardRouter() {
         hasRedirected.current = true;
         if (profile.user_type === 'Admin') {
           router.push('/admin');
+        } else if (profile.user_type === 'Individual') {
+          router.push('/dashboard/buyer');
         } else {
           router.push('/dashboard/graveyard');
         }

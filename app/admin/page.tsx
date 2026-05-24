@@ -11,25 +11,36 @@ import {
 import EditUserModal from "./components/EditUserModal";
 import { downloadUserRevenueCSV, downloadSingleUserRevenueCSV } from "./components/RevenueDownload";
 import { downloadAllUsersPDF, downloadSingleUserPDF } from "./components/RevenuePDF";
+import Image from "next/image";
+import { User as UserType, Part, DeletionRequest, Payment, Dispute, Category } from "@/types";
 
-type Tab = "overview" | "users" | "parts" | "security" | "requests" | "profile";
+type Tab = "overview" | "users" | "parts" | "security" | "requests" | "profile" | "transactions" | "disputes" | "settings";
 
 export default function AdminDashboard() {
   const router = useRouter();
   const [activeTab, setActiveTab] = useState<Tab>("overview");
-  const [users, setUsers] = useState<any[]>([]);
-  const [parts, setParts] = useState<any[]>([]);
+  const [users, setUsers] = useState<UserType[]>([]);
+  const [parts, setParts] = useState<Part[]>([]);
   const [loading, setLoading] = useState(true);
   const [actionLoading, setActionLoading] = useState<string | null>(null);
   const [searchQuery, setSearchQuery] = useState("");
   const [statusFilter, setStatusFilter] = useState("all");
   const [toast, setToast] = useState<{ message: string; type: "success" | "error" } | null>(null);
-  const [editingUser, setEditingUser] = useState<any | null>(null);
-  const [deletionRequests, setDeletionRequests] = useState<any[]>([]);
-  const [adminProfile, setAdminProfile] = useState<any>(null);
+  const [editingUser, setEditingUser] = useState<UserType | null>(null);
+  const [deletionRequests, setDeletionRequests] = useState<DeletionRequest[]>([]);
+  const [adminProfile, setAdminProfile] = useState<UserType | null>(null);
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
-  const [resettingPasswordUser, setResettingPasswordUser] = useState<any | null>(null);
+  const [searchUser, setSearchUser] = useState("");
+  const [resettingPasswordUser, setResettingPasswordUser] = useState<UserType | null>(null);
   const [newAdminPassword, setNewAdminPassword] = useState("");
+  const [transactions, setTransactions] = useState<Payment[]>([]);
+  const [disputes, setDisputes] = useState<Dispute[]>([]);
+  const [categories, setCategories] = useState<Category[]>([]);
+  const [billingUser, setBillingUser] = useState<UserType | null>(null);
+  const [billingAmount, setBillingAmount] = useState<number>(0);
+  const [billingNotes, setBillingNotes] = useState<string>("");
+  const [newBrand, setNewBrand] = useState("");
+  const [newPartCategory, setNewPartCategory] = useState("");
 
   const showToast = (message: string, type: "success" | "error" = "success") => {
     setToast({ message, type });
@@ -38,12 +49,18 @@ export default function AdminDashboard() {
 
   const fetchData = async () => {
     setLoading(true);
-    const [usersRes, partsRes] = await Promise.all([
+    const [usersRes, partsRes, transactionsRes, disputesRes, categoriesRes] = await Promise.all([
       supabase.from("users").select("*"),
       supabase.from("parts").select("*, users!seller_id(name)").order("created_at", { ascending: false }),
+      supabase.from("payments").select("*, users!user_id(name)").order("created_at", { ascending: false }),
+      supabase.from("disputes").select("*, reporter:users!reporter_id(name), reported_user:users!reported_user_id(name), part:parts(title)").order("created_at", { ascending: false }),
+      supabase.from("categories").select("*").order("name", { ascending: true }),
     ]);
     setUsers(usersRes.data || []);
     setParts(partsRes.data || []);
+    setTransactions(transactionsRes?.data || []);
+    setDisputes(disputesRes?.data || []);
+    setCategories(categoriesRes?.data || []);
     // Fetch deletion requests
     try {
       const res = await fetch("/api/admin/deletion-requests");
@@ -123,7 +140,87 @@ export default function AdminDashboard() {
     }
   };
 
-  const handleSaveUser = async (updatedUser: any) => {
+  const handleAddCategory = async (type: 'brand' | 'part_category', name: string) => {
+    if (!name.trim()) return;
+    setActionLoading(`add-cat-${type}`);
+    try {
+      const { data, error } = await supabase.from("categories").insert({ type, name: name.trim() }).select().single();
+      if (error) throw error;
+      setCategories(prev => [...prev, data].sort((a, b) => a.name.localeCompare(b.name)));
+      showToast(`${type === 'brand' ? 'Marka' : 'Kategoria'} u shtua me sukses!`);
+      if (type === 'brand') setNewBrand("");
+      else setNewPartCategory("");
+    } catch (err: any) {
+      showToast(err.message, "error");
+    } finally {
+      setActionLoading(null);
+    }
+  };
+
+  const handleDeleteCategory = async (id: string) => {
+    if (!confirm("Jeni i sigurt që doni të fshini këtë rekord?")) return;
+    setActionLoading(`delete-cat-${id}`);
+    try {
+      const { error } = await supabase.from("categories").delete().eq("id", id);
+      if (error) throw error;
+      setCategories(prev => prev.filter(c => c.id !== id));
+      showToast("U fshi me sukses!");
+    } catch (err: any) {
+      showToast(err.message, "error");
+    } finally {
+      setActionLoading(null);
+    }
+  };
+
+  const handleUpdateDispute = async (id: string, newStatus: 'resolved' | 'dismissed') => {
+    setActionLoading(`dispute-${id}`);
+    try {
+      const { error } = await supabase.from("disputes").update({ status: newStatus }).eq("id", id);
+      if (error) throw error;
+      setDisputes(prev => prev.map(d => d.id === id ? { ...d, status: newStatus } : d));
+      showToast(`Ankesa u mbyll me sukses si '${newStatus}'`);
+    } catch (err: any) {
+      showToast(err.message, "error");
+    } finally {
+      setActionLoading(null);
+    }
+  };
+
+  const handleProcessPayment = async () => {
+    if (!billingUser || billingAmount <= 0) return;
+    setActionLoading(`billing-${billingUser.id}`);
+    try {
+      // Create transaction record
+      const { data: txData, error: txError } = await supabase.from("payments").insert({
+        user_id: billingUser.id,
+        amount: billingAmount,
+        status: "completed",
+        payment_date: new Date().toISOString(),
+        admin_notes: billingNotes,
+        method: "cash"
+      }).select().single();
+      if (txError) throw txError;
+
+      // Update user's debt
+      const newDebt = Math.max(0, (billingUser.current_debt || 0) - billingAmount);
+      const { error: userError } = await supabase.from("users").update({ current_debt: newDebt }).eq("id", billingUser.id);
+      if (userError) throw userError;
+
+      setUsers(prev => prev.map(u => u.id === billingUser.id ? { ...u, current_debt: newDebt } : u));
+      setTransactions([txData, ...transactions]);
+      
+      showToast(`Pagesa u regjistrua me sukses!`);
+      setBillingUser(null);
+      setBillingAmount(0);
+      setBillingNotes("");
+    } catch (err: any) {
+      showToast(err.message, "error");
+    } finally {
+      setActionLoading(null);
+    }
+  };
+
+  const handleSaveUser = async (updatedUser: UserType) => {
     setActionLoading(`edit-${updatedUser.id}`);
     try {
       const { id, created_at, ...updateData } = updatedUser;
@@ -226,8 +323,11 @@ export default function AdminDashboard() {
     { id: "overview" as Tab, label: "Përmbledhje", icon: LayoutDashboard },
     { id: "users" as Tab, label: "Përdoruesit", icon: Users },
     { id: "parts" as Tab, label: "Pjesët", icon: Package },
-    { id: "requests" as Tab, label: `Kërkesat${pendingRequests.length ? ` (${pendingRequests.length})` : ""}`, icon: AlertTriangle },
+    { id: "transactions" as Tab, label: "Transaksionet", icon: CreditCard },
+    { id: "disputes" as Tab, label: "Ankesat", icon: AlertTriangle },
+    { id: "requests" as Tab, label: `Kërkesat${pendingRequests.length ? ` (${pendingRequests.length})` : ""}`, icon: ShieldAlert },
     { id: "security" as Tab, label: "Siguria", icon: Shield },
+    { id: "settings" as Tab, label: "Cilësimet", icon: Menu },
     { id: "profile" as Tab, label: "Profili", icon: UserCircle },
   ];
 
@@ -429,7 +529,7 @@ export default function AdminDashboard() {
                   <div key={part.id} className="flex items-center justify-between py-3 border-b border-white/5 last:border-0">
                     <div className="flex items-center gap-4">
                       {part.image_url && (
-                        <img src={part.image_url} alt={part.title} className="w-10 h-10 rounded-lg object-cover bg-zinc-900" />
+                        <div className="relative w-10 h-10 rounded-lg overflow-hidden bg-zinc-900 shrink-0"><Image src={part.image_url} alt={part.title} fill sizes="40px" className="object-cover" /></div>
                       )}
                       <div>
                         <p className="font-bold text-sm">{part.title}</p>
@@ -549,7 +649,7 @@ export default function AdminDashboard() {
                       </td>
                       <td className="py-6 px-6">
                         <div className="flex flex-col">
-                          <span className={`font-black text-sm ${user.current_debt > 0 ? "text-yellow-500" : "text-emerald-500"}`}>
+                          <span className={`font-black text-sm ${(user.current_debt || 0) > 0 ? "text-yellow-500" : "text-emerald-500"}`}>
                             {user.current_debt || 0}€
                           </span>
                           <span className="text-[8px] font-black uppercase text-zinc-700 tracking-tighter">Pagesa Mujore</span>
@@ -568,6 +668,13 @@ export default function AdminDashboard() {
                       </td>
                       <td className="py-4 px-6">
                         <div className="flex items-center gap-2 flex-wrap">
+                          <button
+                            onClick={() => { setBillingUser(user); setBillingAmount(user.current_debt || 0); setBillingNotes(""); }}
+                            className="px-3 py-1.5 rounded-lg text-[10px] font-black uppercase tracking-wider bg-yellow-500/10 text-yellow-500 hover:bg-yellow-500/20 transition-all"
+                            title="Regjistro Pagesë"
+                          >
+                            Paguaj
+                          </button>
                           <button
                             onClick={() => setResettingPasswordUser(user)}
                             className="p-1.5 rounded-lg bg-yellow-500/10 text-yellow-400 hover:bg-yellow-500/20 transition-all"
@@ -656,7 +763,7 @@ export default function AdminDashboard() {
               {filteredParts.map(part => (
                 <div key={part.id} className="bg-[#0A0A0A] border border-white/5 rounded-2xl overflow-hidden hover:border-white/10 transition-all group">
                   {part.image_url ? (
-                    <img src={part.image_url} alt={part.title} className="w-full h-40 object-cover bg-zinc-900" />
+                    <div className="relative w-full h-40 bg-zinc-900"><Image src={part.image_url} alt={part.title} fill sizes="(max-width: 768px) 100vw, 33vw" className="object-cover" /></div>
                   ) : (
                     <div className="w-full h-40 bg-zinc-900 flex items-center justify-center">
                       <Package className="w-8 h-8 text-zinc-700" />
@@ -767,6 +874,151 @@ export default function AdminDashboard() {
           </div>
         )}
 
+        {/* TRANSACTIONS TAB */}
+        {activeTab === "transactions" && (
+          <div className="space-y-6">
+            <div className="bg-[#0A0A0A] border border-white/5 rounded-2xl overflow-x-auto">
+              <table className="w-full min-w-[800px]">
+                <thead>
+                  <tr className="border-b border-white/5">
+                    {["Përdoruesi", "Shuma", "Data", "Metoda", "Shënime", "Statusi"].map(h => (
+                      <th key={h} className="text-left py-4 px-6 text-[10px] font-black uppercase tracking-[0.3em] text-zinc-600">{h}</th>
+                    ))}
+                  </tr>
+                </thead>
+                <tbody>
+                  {transactions.map(tx => (
+                    <tr key={tx.id} className="border-b border-white/5 hover:bg-white/[0.02] transition-colors">
+                      <td className="py-4 px-6 font-bold text-sm">{tx.users?.name || "Pa emër"}</td>
+                      <td className="py-4 px-6 font-black text-emerald-500">{tx.amount}€</td>
+                      <td className="py-4 px-6 text-zinc-400 text-sm">
+                        {new Date(tx.payment_date || tx.created_at).toLocaleDateString("sq-AL")}
+                      </td>
+                      <td className="py-4 px-6 text-zinc-400 text-sm capitalize">{tx.method || "Cash"}</td>
+                      <td className="py-4 px-6 text-zinc-400 text-xs italic">{tx.admin_notes || "—"}</td>
+                      <td className="py-4 px-6">
+                        <span className="text-[9px] font-black uppercase tracking-widest px-3 py-1 rounded-full border bg-emerald-500/10 border-emerald-500/20 text-emerald-400">
+                          {tx.status}
+                        </span>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+              {transactions.length === 0 && (
+                <div className="py-12 text-center text-zinc-600 text-sm">Asnjë transaksion i gjetur.</div>
+              )}
+            </div>
+          </div>
+        )}
+
+        {/* DISPUTES TAB */}
+        {activeTab === "disputes" && (
+          <div className="space-y-6">
+            <div className="bg-[#0A0A0A] border border-white/5 rounded-2xl overflow-x-auto">
+              <table className="w-full min-w-[800px]">
+                <thead>
+                  <tr className="border-b border-white/5">
+                    {["Raportuesi", "I Raportuari", "Pjesa", "Arsyeja", "Statusi", "Veprime"].map(h => (
+                      <th key={h} className="text-left py-4 px-6 text-[10px] font-black uppercase tracking-[0.3em] text-zinc-600">{h}</th>
+                    ))}
+                  </tr>
+                </thead>
+                <tbody>
+                  {disputes.map(dispute => (
+                    <tr key={dispute.id} className="border-b border-white/5 hover:bg-white/[0.02] transition-colors">
+                      <td className="py-4 px-6 font-bold text-sm">{dispute.reporter?.name || "I panjohur"}</td>
+                      <td className="py-4 px-6 font-bold text-sm text-yellow-500">{dispute.reported_user?.name || "I panjohur"}</td>
+                      <td className="py-4 px-6 text-zinc-400 text-sm">{dispute.part?.title || "—"}</td>
+                      <td className="py-4 px-6 text-zinc-400 text-sm max-w-[200px] truncate" title={dispute.reason}>
+                        {dispute.reason}
+                      </td>
+                      <td className="py-4 px-6">
+                        <span className={`text-[9px] font-black uppercase tracking-widest px-3 py-1 rounded-full border ${
+                          dispute.status === 'pending' ? 'bg-yellow-500/10 border-yellow-500/20 text-yellow-500' :
+                          dispute.status === 'resolved' ? 'bg-emerald-500/10 border-emerald-500/20 text-emerald-500' :
+                          'bg-zinc-500/10 border-zinc-500/20 text-zinc-500'
+                        }`}>
+                          {dispute.status}
+                        </span>
+                      </td>
+                      <td className="py-4 px-6">
+                        <div className="flex gap-2">
+                          <button
+                            onClick={() => {
+                              if(dispute.reported_user_id) handleStatusToggle(dispute.reported_user_id, 'Active');
+                              handleUpdateDispute(dispute.id, 'resolved');
+                            }}
+                            disabled={actionLoading !== null}
+                            className="px-3 py-1.5 rounded-lg text-[9px] font-black uppercase tracking-wider bg-red-500/10 text-red-400 hover:bg-red-500/20 transition-all disabled:opacity-50"
+                          >
+                            Pezullo Shitësin & Zgjidh
+                          </button>
+                          <button
+                            onClick={() => handleUpdateDispute(dispute.id, 'dismissed')}
+                            disabled={actionLoading !== null}
+                            className="px-3 py-1.5 rounded-lg text-[9px] font-black uppercase tracking-wider bg-white/5 text-zinc-400 hover:bg-white/10 transition-all disabled:opacity-50"
+                          >
+                            Mbyll Ankesën (Dismiss)
+                          </button>
+                        </div>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+              {disputes.length === 0 && (
+                <div className="py-12 text-center text-zinc-600 text-sm">Asnjë ankesë në sistem.</div>
+              )}
+            </div>
+          </div>
+        )}
+
+        {/* SETTINGS TAB */}
+        {activeTab === "settings" && (
+          <div className="space-y-6">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+              <div className="bg-[#0A0A0A] border border-white/5 rounded-2xl p-6">
+                <h3 className="text-lg font-black uppercase italic tracking-tight mb-4 text-blue-400">Markat e Makinave</h3>
+                <div className="space-y-3 max-h-[300px] overflow-y-auto pr-2">
+                  {categories.filter(c => c.type === 'brand').map(brand => (
+                    <div key={brand.id} className="flex justify-between items-center p-3 bg-white/5 rounded-xl border border-white/5">
+                      <span className="font-bold text-sm">{brand.name}</span>
+                      <button onClick={() => handleDeleteCategory(brand.id)} disabled={actionLoading === `delete-cat-${brand.id}`} className="text-red-400 hover:text-red-300 disabled:opacity-50"><Trash2 className="w-4 h-4" /></button>
+                    </div>
+                  ))}
+                  {categories.filter(c => c.type === 'brand').length === 0 && (
+                    <div className="text-zinc-600 text-sm text-center py-4">Nuk ka marka.</div>
+                  )}
+                </div>
+                <div className="mt-4 flex gap-2">
+                  <input type="text" value={newBrand} onChange={e => setNewBrand(e.target.value)} placeholder="Shto Markë të re..." className="flex-1 bg-black border border-white/10 rounded-lg px-4 py-2 text-sm focus:border-blue-500 outline-none" />
+                  <button onClick={() => handleAddCategory('brand', newBrand)} disabled={actionLoading === 'add-cat-brand'} className="bg-blue-600 px-4 rounded-lg font-bold text-sm hover:bg-blue-500 disabled:opacity-50">Shto</button>
+                </div>
+              </div>
+
+              <div className="bg-[#0A0A0A] border border-white/5 rounded-2xl p-6">
+                <h3 className="text-lg font-black uppercase italic tracking-tight mb-4 text-emerald-400">Kategoritë e Pjesëve</h3>
+                <div className="space-y-3 max-h-[300px] overflow-y-auto pr-2">
+                  {categories.filter(c => c.type === 'part_category').map(cat => (
+                    <div key={cat.id} className="flex justify-between items-center p-3 bg-white/5 rounded-xl border border-white/5">
+                      <span className="font-bold text-sm">{cat.name}</span>
+                      <button onClick={() => handleDeleteCategory(cat.id)} disabled={actionLoading === `delete-cat-${cat.id}`} className="text-red-400 hover:text-red-300 disabled:opacity-50"><Trash2 className="w-4 h-4" /></button>
+                    </div>
+                  ))}
+                  {categories.filter(c => c.type === 'part_category').length === 0 && (
+                    <div className="text-zinc-600 text-sm text-center py-4">Nuk ka kategori.</div>
+                  )}
+                </div>
+                <div className="mt-4 flex gap-2">
+                  <input type="text" value={newPartCategory} onChange={e => setNewPartCategory(e.target.value)} placeholder="Shto Kategori të re..." className="flex-1 bg-black border border-white/10 rounded-lg px-4 py-2 text-sm focus:border-emerald-500 outline-none" />
+                  <button onClick={() => handleAddCategory('part_category', newPartCategory)} disabled={actionLoading === 'add-cat-part_category'} className="bg-emerald-600 px-4 rounded-lg font-bold text-sm hover:bg-emerald-500 disabled:opacity-50">Shto</button>
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
+
         {/* PROFILE TAB */}
         {activeTab === "profile" && adminProfile && (
           <ProfilePanel profile={adminProfile} showToast={showToast} setProfile={setAdminProfile} />
@@ -820,6 +1072,57 @@ export default function AdminDashboard() {
           </div>
         </div>
       )}
+
+      {/* Billing Modal */}
+      {billingUser && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-6 backdrop-blur-xl bg-black/80">
+          <div className="bg-[#0A0A0A] border border-white/10 rounded-2xl p-6 max-w-md w-full shadow-2xl">
+            <h3 className="text-xl font-black uppercase italic mb-2 text-yellow-500">Regjistro Pagesë</h3>
+            <p className="text-zinc-600 text-[10px] mb-6 font-black uppercase tracking-widest">
+              Për përdoruesin: <span className="text-white">{billingUser.name || billingUser.email}</span>
+            </p>
+            <div className="space-y-4">
+              <div className="space-y-1">
+                <label className="text-[9px] font-black uppercase text-zinc-600 ml-1">Shuma e Pagesës (€)</label>
+                <input 
+                  type="number"
+                  min="0"
+                  step="0.01"
+                  placeholder="Shkruani shumën..." 
+                  value={billingAmount}
+                  onChange={e => setBillingAmount(parseFloat(e.target.value) || 0)}
+                  className="w-full bg-white/5 border border-white/10 rounded-xl p-4 text-white focus:border-yellow-500/50 outline-none transition-all"
+                />
+              </div>
+              <div className="space-y-1">
+                <label className="text-[9px] font-black uppercase text-zinc-600 ml-1">Shënime Admini</label>
+                <textarea 
+                  placeholder="Opsionale: Detaje rreth pagesës..." 
+                  value={billingNotes}
+                  onChange={e => setBillingNotes(e.target.value)}
+                  className="w-full bg-white/5 border border-white/10 rounded-xl p-4 text-white focus:border-yellow-500/50 outline-none transition-all resize-none h-24"
+                />
+              </div>
+              <div className="flex gap-4 pt-2">
+                <button 
+                  onClick={handleProcessPayment}
+                  disabled={actionLoading?.startsWith('billing-')}
+                  className="flex-1 bg-yellow-500 py-4 rounded-xl font-black uppercase italic text-sm text-black hover:bg-yellow-400 transition-all disabled:opacity-50 shadow-lg shadow-yellow-500/20"
+                >
+                  {actionLoading?.startsWith('billing-') ? 'Duke u regjistruar...' : 'RUAJ PAGESËN'}
+                </button>
+                <button 
+                  onClick={() => { setBillingUser(null); setBillingAmount(0); setBillingNotes(""); }}
+                  className="px-8 bg-white/5 py-4 rounded-xl font-black uppercase italic text-sm hover:bg-white/10 transition-all"
+                >
+                  ANULO
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
     </div>
   );
 }
@@ -951,7 +1254,7 @@ function SecurityPanel({ showToast }: { showToast: (msg: string, type?: "success
   );
 }
 
-function ProfilePanel({ profile, showToast, setProfile }: { profile: any, showToast: any, setProfile: any }) {
+function ProfilePanel({ profile, showToast, setProfile }: { profile: UserType, showToast: (msg: string, type?: "success" | "error") => void, setProfile: (profile: UserType) => void }) {
   const [form, setForm] = useState({
     name: profile.name || "",
     email: profile.email || "",

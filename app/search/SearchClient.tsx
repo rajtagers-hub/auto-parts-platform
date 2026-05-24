@@ -4,9 +4,10 @@ import { supabase } from '@/lib/supabaseClient';
 import { useSearchParams, useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { 
-  Search, MapPin, Phone, MessageCircle, Package, Filter, X, ArrowLeft, ArrowRight, Mail, SlidersHorizontal, ChevronDown, Clock, CheckCircle2, ExternalLink
+  Search, MapPin, Phone, MessageCircle, Package, Filter, X, ArrowLeft, ArrowRight, Mail, SlidersHorizontal, ChevronDown, Clock, CheckCircle2, ExternalLink, Heart
 } from 'lucide-react';
 import Footer from '@/components/Footer';
+import Image from 'next/image';
 
 const ALBANIAN_CITIES = [
   "Tiranë", "Durrës", "Vlorë", "Elbasan", "Shkodër", "Fier", "Korçë", "Berat",
@@ -59,6 +60,21 @@ export default function SearchClient() {
   const [priceRange, setPriceRange] = useState({ min: 0, max: 10000 });
   const [selectedCity, setSelectedCity] = useState('');
   const [selectedPart, setSelectedPart] = useState<Part | null>(null);
+  const [toast, setToast] = useState<{ message: string; type: "success" | "error" } | null>(null);
+  const [currentUser, setCurrentUser] = useState<any>(null);
+
+  useEffect(() => {
+    supabase.auth.getUser().then(({ data: { user } }) => {
+      if (user) {
+        setCurrentUser(user);
+      }
+    });
+  }, []);
+
+  const showToast = (message: string, type: "success" | "error" = "success") => {
+    setToast({ message, type });
+    setTimeout(() => setToast(null), 3000);
+  };
   
   // Infinite Loading States
   const [page, setPage] = useState(0);
@@ -76,11 +92,46 @@ export default function SearchClient() {
         user_id: sellerId,
         type: 'lead',
         message: `Një klient kërkoi kontakt për pjesën tuaj: ${partTitle}`,
-        link: '/dashboard/graveyard', // Link to dashboard inventory
+        link: '/dashboard/graveyard',
         is_read: false
       });
-    } catch (err) {
-      // Silent fail
+
+      if (currentUser) {
+        await supabase.from('buyer_leads').insert({
+          buyer_id: currentUser.id,
+          seller_id: sellerId,
+          part_id: partId,
+          status: 'contacted'
+        });
+      }
+
+      // Silent success for leads since it opens whatsapp/dialer anyway
+    } catch (err: any) {
+      showToast("Pati një problem gjatë regjistrimit të kërkesës.", "error");
+    }
+  };
+
+  const handleWishlist = async (partId: string) => {
+    if (!currentUser) {
+      showToast("Duhet të jeni të loguar për të ruajtur pjesë.", "error");
+      return;
+    }
+    try {
+      const { error } = await supabase.from('saved_parts').insert({
+        user_id: currentUser.id,
+        part_id: partId
+      });
+      if (error) {
+        if (error.code === '23505') { // Unique constraint violation
+          showToast("Kjo pjesë është ruajtur tashmë.", "error");
+        } else {
+          throw error;
+        }
+      } else {
+        showToast("Pjesa u ruajt në listën tuaj!");
+      }
+    } catch (err: any) {
+      showToast("Pati një problem gjatë ruajtjes.", "error");
     }
   };
 
@@ -106,6 +157,14 @@ export default function SearchClient() {
     if (initialBrand) query = query.ilike('category', `%${initialBrand}%`);
     if (initialModel) query = query.ilike('model', `%${initialModel}%`);
     if (initialPartType) query = query.ilike('title', `%${initialPartType}%`);
+    
+    if (searchTerm) {
+      query = query.or(`title.ilike.%${searchTerm}%,model.ilike.%${searchTerm}%,oem_number.ilike.%${searchTerm}%`);
+    }
+
+    if (selectedCity) {
+      query = query.eq('users.city', selectedCity);
+    }
 
     // Apply sorting
     if (sortBy === 'price_asc') query = query.order('price', { ascending: true });
@@ -133,8 +192,12 @@ export default function SearchClient() {
   };
 
   useEffect(() => {
-    fetchParts(0, true);
-  }, [initialBrand, initialModel, initialPartType, sortBy]);
+    // Add debounce for search term
+    const timeoutId = setTimeout(() => {
+      fetchParts(0, true);
+    }, 500);
+    return () => clearTimeout(timeoutId);
+  }, [initialBrand, initialModel, initialPartType, sortBy, searchTerm, selectedCity]);
 
   // Infinite Scroll Observer
   useEffect(() => {
@@ -160,12 +223,8 @@ export default function SearchClient() {
 
   const filteredParts = useMemo(() => {
     const filtered = parts.filter(part => {
-      const matchesSearch = part.title.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                           part.model?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                           part.users?.name?.toLowerCase().includes(searchTerm.toLowerCase());
       const matchesPrice = part.price >= priceRange.min && part.price <= priceRange.max;
-      const matchesCity = !selectedCity || part.users?.city === selectedCity;
-      return matchesSearch && matchesPrice && matchesCity;
+      return matchesPrice;
     });
     if (sortBy === 'newest') filtered.sort((a,b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
     else if (sortBy === 'price_asc') filtered.sort((a,b) => a.price - b.price);
@@ -189,6 +248,17 @@ export default function SearchClient() {
 
   return (
     <div className="min-h-screen bg-[#020202] text-white font-sans selection:bg-blue-600 selection:text-white">
+      {/* Toast */}
+      {toast && (
+        <div className={`fixed top-6 right-6 z-[200] px-6 py-4 rounded-2xl border text-sm font-bold uppercase tracking-wider transition-all animate-pulse ${
+          toast.type === "success"
+            ? "bg-emerald-500/10 border-emerald-500/30 text-emerald-400"
+            : "bg-red-500/10 border-red-500/30 text-red-400"
+        }`}>
+          {toast.message}
+        </div>
+      )}
+
       {/* Header */}
       <header className="sticky top-0 z-50 bg-black/80 backdrop-blur-xl border-b border-white/5 px-6 py-4">
         <div className="max-w-7xl mx-auto flex justify-between items-center">
@@ -203,7 +273,7 @@ export default function SearchClient() {
           </button>
           
           <Link href="/" className="hover:opacity-80 transition-opacity">
-            <img src="/vektra.svg" alt="VEKTRA" className="h-7 w-auto" />
+            <Image src="/vektra.svg" alt="VEKTRA" width={100} height={28} className="h-7 w-auto" />
           </Link>
 
           <div className="flex items-center gap-4">
@@ -236,10 +306,10 @@ export default function SearchClient() {
               <div className="relative flex-1 group">
                 <Search className="absolute left-6 top-1/2 -translate-y-1/2 text-zinc-600 group-focus-within:text-blue-500 transition-colors" size={18}/>
                 <input 
-                  placeholder="Kërkoni pjesë..." 
-                  value={searchTerm} 
-                  onChange={e=>setSearchTerm(e.target.value)} 
-                  className="w-full bg-white/5 border border-white/10 rounded-2xl py-4 pl-16 pr-6 text-sm text-white placeholder:text-zinc-600 outline-none focus:border-blue-600/50 focus:bg-white/[0.08] transition-all"
+                  placeholder="Kërkoni me emër, model, ose kod OEM..." 
+                  value={searchTerm}
+                  onChange={e => setSearchTerm(e.target.value)}
+                  className="w-full lg:w-96 bg-white/5 border border-white/10 rounded-2xl py-4 pl-12 pr-6 text-sm text-white focus:bg-white/10 focus:border-blue-500/50 outline-none transition-all"
                 />
               </div>
 
@@ -285,7 +355,7 @@ export default function SearchClient() {
           <div className="relative group">
             <Search className="absolute left-6 top-1/2 -translate-y-1/2 text-zinc-600" size={18}/>
             <input 
-              placeholder="Kërkoni pjesë..." 
+              placeholder="Kërkoni emër, model, OEM..." 
               value={searchTerm} 
               onChange={e=>setSearchTerm(e.target.value)} 
               className="w-full bg-[#0A0A0A] border border-white/10 rounded-2xl py-4 pl-16 pr-6 text-sm text-white outline-none"
@@ -344,7 +414,7 @@ export default function SearchClient() {
                 {/* Image Container */}
                 <div className="aspect-square relative overflow-hidden">
                   {part.image_url ? (
-                    <img src={part.image_url} alt={part.title} className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-700 ease-out"/>
+                    <Image src={part.image_url} fill sizes="(max-width: 768px) 50vw, (max-width: 1200px) 33vw, 25vw" alt={part.title} className="object-cover group-hover:scale-110 transition-transform duration-700 ease-out"/>
                   ) : (
                     <div className="w-full h-full flex items-center justify-center text-zinc-800"><Package size={48} /></div>
                   )}
@@ -353,6 +423,15 @@ export default function SearchClient() {
                     <div className="bg-black/50 backdrop-blur-md border border-white/10 text-white px-2 py-1 md:px-4 md:py-1.5 rounded-full text-[8px] md:text-[10px] font-black uppercase italic tracking-widest">
                       {part.model}
                     </div>
+                  </div>
+
+                  <div className="absolute top-3 right-3 md:top-6 md:right-6">
+                    <button 
+                      onClick={(e) => { e.stopPropagation(); handleWishlist(part.id); }}
+                      className="p-2 bg-black/50 backdrop-blur-md border border-white/10 text-white rounded-full hover:bg-pink-500 hover:text-white hover:border-pink-500 transition-all shadow-xl"
+                    >
+                      <Heart size={16} className="md:w-5 md:h-5" />
+                    </button>
                   </div>
                   
                   <div className="absolute bottom-3 right-3 md:bottom-6 md:right-6 bg-blue-600 text-white px-3 py-1.5 md:px-6 md:py-3 rounded-lg md:rounded-2xl font-black italic text-lg md:text-2xl shadow-2xl">
@@ -406,7 +485,7 @@ export default function SearchClient() {
             {/* Modal Image Area */}
             <div className="w-full md:w-1/2 bg-zinc-950 relative h-[40vh] md:h-auto min-h-[300px]">
               {selectedPart.image_url ? (
-                <img src={selectedPart.image_url} alt={selectedPart.title} className="w-full h-full object-cover" />
+                <Image src={selectedPart.image_url} fill sizes="(max-width: 768px) 100vw, 50vw" alt={selectedPart.title} className="object-cover" />
               ) : (
                 <div className="w-full h-full flex items-center justify-center text-zinc-900"><Package size={120} /></div>
               )}
@@ -433,6 +512,12 @@ export default function SearchClient() {
                 <h2 className="text-3xl md:text-6xl font-black italic uppercase leading-none tracking-tighter mb-6 md:mb-8 text-white">
                   {selectedPart.title}
                 </h2>
+
+                <div className="flex gap-4 mb-8">
+                  <button onClick={() => handleWishlist(selectedPart.id)} className="flex items-center gap-2 bg-pink-500/10 text-pink-500 border border-pink-500/20 px-6 py-3 rounded-xl font-black uppercase italic text-sm hover:bg-pink-500 hover:text-white transition-all shadow-[0_0_20px_rgba(236,72,153,0.1)]">
+                    <Heart size={18} /> Ruaj
+                  </button>
+                </div>
 
                 <div className="grid grid-cols-2 lg:grid-cols-5 gap-3 md:gap-4 mb-8 md:mb-12">
                   {[

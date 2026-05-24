@@ -9,6 +9,7 @@ import {
   Package, MapPin, MessageCircle
 } from 'lucide-react';
 import Footer from '@/components/Footer';
+import Image from 'next/image';
 
 const carBrands = [
   "ALFA ROMEO", "AUDI", "BMW", "CHEVROLET", "CITROEN", "DACIA", "FIAT", "FORD",
@@ -130,7 +131,7 @@ export default function LandingPage() {
       <nav className="fixed top-0 w-full z-40 bg-black/90 backdrop-blur-md border-b border-white/5 px-6 py-5">
         <div className="max-w-7xl mx-auto flex justify-between items-center">
           <Link href="/" className="flex items-center gap-2">
-            <img src="/vektra.svg" alt="VEKTRA" className="h-8 w-auto" />
+            <Image src="/vektra.svg" alt="VEKTRA" width={120} height={32} className="h-8 w-auto" />
           </Link>
           <div className="flex items-center gap-4">
             <button className="hidden sm:flex items-center gap-2 text-[10px] font-black uppercase tracking-widest bg-white/5 border border-white/10 px-4 py-2 rounded-full hover:bg-white/10 transition-colors">
@@ -231,7 +232,7 @@ export default function LandingPage() {
               >
                 <div className="aspect-square bg-zinc-800 relative overflow-hidden">
                   {part.image_url ? (
-                    <img src={part.image_url} className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-500" alt={part.title} />
+                    <Image src={part.image_url} fill sizes="(max-width: 768px) 100vw, (max-width: 1200px) 50vw, 33vw" className="object-cover group-hover:scale-110 transition-transform duration-500" alt={part.title} />
                   ) : (
                     <div className="w-full h-full flex items-center justify-center text-zinc-700">
                       <Package size={48} />
@@ -285,7 +286,7 @@ export default function LandingPage() {
             {/* Image Area */}
             <div className="md:w-1/2 bg-zinc-900 relative min-h-[300px]">
               {selectedPart.image_url ? (
-                <img src={selectedPart.image_url} className="w-full h-full object-cover" alt={selectedPart.title} />
+                <Image src={selectedPart.image_url} fill sizes="(max-width: 768px) 100vw, 50vw" className="object-cover" alt={selectedPart.title} />
               ) : (
                 <div className="w-full h-full flex items-center justify-center text-zinc-800"><Package size={80} /></div>
               )}
