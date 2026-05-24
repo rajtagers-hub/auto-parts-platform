@@ -42,10 +42,43 @@ export default function AdminDashboard() {
   const [newBrand, setNewBrand] = useState("");
   const [newPartCategory, setNewPartCategory] = useState("");
 
+  const [authorized, setAuthorized] = useState(false);
+
   const showToast = (message: string, type: "success" | "error" = "success") => {
     setToast({ message, type });
     setTimeout(() => setToast(null), 3000);
   };
+
+  // Auth guard: check user is logged in AND is Admin
+  useEffect(() => {
+    const checkAuth = async () => {
+      try {
+        const { data: { user }, error } = await supabase.auth.getUser();
+        if (error || !user) {
+          router.push('/login');
+          return;
+        }
+        const { data: profile } = await supabase.from("users").select("user_type").eq("id", user.id).single();
+        if (!profile || profile.user_type !== 'Admin') {
+          router.push('/login');
+          return;
+        }
+        setAuthorized(true);
+        fetchData();
+      } catch {
+        router.push('/login');
+      }
+    };
+    checkAuth();
+
+    // Listen for auth state changes (logout)
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((event) => {
+      if (event === 'SIGNED_OUT') {
+        router.push('/login');
+      }
+    });
+    return () => subscription.unsubscribe();
+  }, [router]);
 
   const fetchData = async () => {
     setLoading(true);
@@ -75,7 +108,12 @@ export default function AdminDashboard() {
     setLoading(false);
   };
 
-  useEffect(() => { fetchData(); }, []);
+  // Show nothing while checking auth
+  if (!authorized) {
+    return <div className="min-h-screen bg-black flex items-center justify-center text-white">
+      <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-500"></div>
+    </div>;
+  }
 
   const handleStatusToggle = async (userId: string, currentStatus: string) => {
     const newStatus = currentStatus === "Active" ? "Suspended" : "Active";

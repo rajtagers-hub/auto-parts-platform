@@ -38,7 +38,15 @@ export default function BuyerDashboard() {
 
   useEffect(() => {
     fetchData();
-  }, []);
+
+    // Listen for auth state changes (logout)
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((event) => {
+      if (event === 'SIGNED_OUT') {
+        router.push('/login');
+      }
+    });
+    return () => subscription.unsubscribe();
+  }, [router]);
 
   const fetchData = async () => {
     try {

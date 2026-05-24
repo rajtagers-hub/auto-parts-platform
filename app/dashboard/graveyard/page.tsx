@@ -84,19 +84,37 @@ export default function GraveyardDashboard() {
 
   useEffect(() => {
     const getUser = async () => {
-      const { data: { user } } = await supabase.auth.getUser();
-      if (!user) { router.push('/login'); return; }
-      setUserId(user.id);
-      await fetchSellerData(user.id);
-      await fetchParts(user.id);
-      await fetchSales(user.id);
-      await fetchBuyerLeads(user.id);
-      await fetchPayments(user.id);
-      await fetchNotifications(user.id);
-      setLoading(false);
+      try {
+        const { data: { user }, error } = await supabase.auth.getUser();
+        if (error || !user) { router.push('/login'); return; }
+        // Verify user_type is seller (not Admin or Individual)
+        const { data: profile } = await supabase.from('users').select('user_type').eq('id', user.id).single();
+        if (!profile || profile.user_type === 'Admin' || profile.user_type === 'Individual') {
+          router.push('/dashboard');
+          return;
+        }
+        setUserId(user.id);
+        await fetchSellerData(user.id);
+        await fetchParts(user.id);
+        await fetchSales(user.id);
+        await fetchBuyerLeads(user.id);
+        await fetchPayments(user.id);
+        await fetchNotifications(user.id);
+        setLoading(false);
+      } catch {
+        router.push('/login');
+      }
     };
     getUser();
-  }, []);
+
+    // Listen for auth state changes (logout)
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((event) => {
+      if (event === 'SIGNED_OUT') {
+        router.push('/login');
+      }
+    });
+    return () => subscription.unsubscribe();
+  }, [router]);
 
   async function fetchSellerData(uid: string) {
     const { data } = await supabase
