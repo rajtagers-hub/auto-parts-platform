@@ -1,11 +1,23 @@
 import { supabaseAdmin } from '@/lib/supabaseAdmin';
+import { verifyAdmin } from '@/lib/authGuard';
 import { NextResponse } from 'next/server';
 
 export async function POST(request: Request) {
   try {
+    // SECURITY: Verify caller is authenticated Admin
+    const admin = await verifyAdmin();
+    if (!admin) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
+
     const { userId } = await request.json();
     if (!userId) {
       return NextResponse.json({ error: 'Missing userId' }, { status: 400 });
+    }
+
+    // Prevent admin from deleting themselves
+    if (userId === admin.id) {
+      return NextResponse.json({ error: 'Cannot delete yourself' }, { status: 400 });
     }
 
     // Delete user's parts, payments, and user row

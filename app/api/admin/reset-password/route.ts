@@ -1,8 +1,15 @@
 import { supabaseAdmin } from '@/lib/supabaseAdmin';
+import { verifyAdmin } from '@/lib/authGuard';
 import { NextResponse } from 'next/server';
 
 export async function POST(request: Request) {
   try {
+    // SECURITY: Verify caller is authenticated Admin
+    const admin = await verifyAdmin();
+    if (!admin) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
+
     const { userId, newPassword } = await request.json();
     if (!userId || !newPassword) {
       return NextResponse.json({ error: 'Missing userId or newPassword' }, { status: 400 });

@@ -2,6 +2,7 @@ import { createServerClient } from '@supabase/ssr';
 import { cookies } from 'next/headers';
 import { NextResponse } from 'next/server';
 import { supabaseAdmin } from '@/lib/supabaseAdmin';
+import { verifyAdmin } from '@/lib/authGuard';
 
 // User submits a deletion request
 export async function POST() {
@@ -39,9 +40,15 @@ export async function POST() {
   }
 }
 
-// Admin gets all deletion requests
+// Admin gets all deletion requests - SECURED
 export async function GET() {
   try {
+    // SECURITY: Verify caller is authenticated Admin
+    const admin = await verifyAdmin();
+    if (!admin) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
+
     const { data, error } = await supabaseAdmin
       .from('deletion_requests')
       .select('*, users(name, email)')

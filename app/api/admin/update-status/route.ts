@@ -1,14 +1,19 @@
 import { supabaseAdmin } from '@/lib/supabaseAdmin';
+import { verifyAdmin } from '@/lib/authGuard';
 import { NextResponse } from 'next/server';
 
 export async function POST(request: Request) {
   try {
+    // SECURITY: Verify caller is authenticated Admin
+    const admin = await verifyAdmin();
+    if (!admin) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
+
     const { userId, newStatus } = await request.json();
     if (!userId || !newStatus) {
       return NextResponse.json({ error: 'Missing userId or newStatus' }, { status: 400 });
     }
-
-    console.log('[API] Updating user:', userId, 'to status:', newStatus);
 
     const { data, error } = await supabaseAdmin
       .from('users')
@@ -25,7 +30,6 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: 'User not found' }, { status: 404 });
     }
 
-    console.log('[API] Update successful:', data[0]);
     return NextResponse.json({ success: true, updatedUser: data[0] });
   } catch (err: any) {
     console.error('[API] Unexpected error:', err);
