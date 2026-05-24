@@ -21,7 +21,7 @@ export const viewport: Viewport = {
 };
 
 export const metadata: Metadata = {
-  metadataBase: new URL("https://vektra.com"),
+  metadataBase: new URL("https://auto-parts-platform.vercel.app"),
   title: {
     default: "VEKTRA - Gjej Pjesë Këmbimi Origjinale",
     template: "%s | VEKTRA",
@@ -32,7 +32,7 @@ export const metadata: Metadata = {
   openGraph: {
     type: "website",
     locale: "sq_AL",
-    url: "https://vektra.com",
+    url: "https://auto-parts-platform.vercel.app",
     siteName: "VEKTRA",
     title: "VEKTRA - Gjej Pjesë Këmbimi Origjinale",
     description: "Gjeni pjesë këmbimi origjinale nga pikat më të sigurta të skrapit.",
@@ -83,8 +83,8 @@ export default function RootLayout({
               "@context": "https://schema.org",
               "@type": "Organization",
               "name": "VEKTRA",
-              "url": "https://vektra.com",
-              "logo": "https://vektra.com/vektra.svg",
+              "url": "https://auto-parts-platform.vercel.app",
+              "logo": "https://auto-parts-platform.vercel.app/vektra.svg",
               "contactPoint": {
                 "@type": "ContactPoint",
                 "telephone": "+355-00-000-000",
