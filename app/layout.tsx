@@ -1,5 +1,6 @@
 import type { Metadata, Viewport } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
+import PwaRegistry from "./PwaRegistry";
 import "./globals.css";
 
 const geistSans = Geist({
@@ -51,8 +52,14 @@ export const metadata: Metadata = {
   manifest: "/manifest.json",
   appleWebApp: {
     capable: true,
-    statusBarStyle: "default",
+    statusBarStyle: "black-translucent",
     title: "VEKTRA",
+    startupImage: [
+      {
+        url: "/icons/icon-512x512.png",
+        media: "(device-width: 768px) and (device-height: 1024px)",
+      },
+    ],
   },
   formatDetection: {
     telephone: false,
@@ -67,6 +74,7 @@ export default function RootLayout({
   return (
     <html lang="sq" className={`${geistSans.variable} ${geistMono.variable}`}>
       <body className="min-h-screen bg-black font-sans antialiased">
+        <PwaRegistry />
         {children}
         <script
           type="application/ld+json"
